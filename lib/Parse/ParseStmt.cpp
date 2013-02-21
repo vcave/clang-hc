@@ -1224,7 +1224,7 @@ StmtResult Parser::ParseHcFinishStatement(SourceLocation *TrailingElseLoc) {
 
 
 /// \brief Parse an HC clause arguments. A list of variables of the form: (a, b, c)
-ExprResult Parser::ParseHcClauseVarList() {
+ExprResult Parser::ParseHcClauseVarList(SourceLocation ClauseTokenLoc) {
     ExprResult Result(true);
     
     // Setup to parse the parenthesized expression.
@@ -1235,12 +1235,22 @@ ExprResult Parser::ParseHcClauseVarList() {
     bool isTypeCast = false;
     ParsedType CastTy;
     SourceLocation RParenLoc;
-    
+
+    // For HC clauses we do not want to report arguments as
+    // unused expression results.
+    // The code that checks that is buried in ParseParenExpression
+    // If we were to implement our own parsing routine we wouldn't
+    // have to do so.
+    // However, we can ignore 'unused-value' warnings just starting at
+    // the keyword location up to the right parenthesis of the clause.
+    Actions.Diags.setDiagnosticGroupMapping("unused-value", diag::MAP_IGNORE, ClauseTokenLoc);
     Result = ParseParenExpression(ParenExprType, stopIfCastExpr,
                                  isTypeCast, CastTy, RParenLoc);
+    //HC-TODO How to first read the diag level for a particular option to restore it afterward ?
+    Actions.Diags.setDiagnosticGroupMapping("unused-value", diag::MAP_WARNING, RParenLoc);
+
     if (Result.isInvalid()) {
-        //HC-DEBUG
-        printf("Invalid ParenExpression parsing for HC Clause\n");
+        return ExprError();
     }
     return Result;
 }
@@ -1297,7 +1307,7 @@ Retry:
     }
 Checkout:
     ConsumeToken();  // eat the keyword.
-    ExprResult ExprList = ParseHcClauseVarList();
+    ExprResult ExprList = ParseHcClauseVarList(AtLoc);
     StmtResult ClauseStmt = Actions.ActOnHcClauseStmt(AtLoc, currentKind, ExprList.get());
     ClausesDecls.push_back(ClauseStmt.release());
     goto Retry;
