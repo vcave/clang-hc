@@ -1946,10 +1946,8 @@ public:
             case HC_CLAUSE_PHASED: {
                 return "phased";
             }
-            default:
-                llvm_unreachable("Unknown HC Clause Kind");
         }
-        
+        llvm_unreachable("Unknown HC Clause Kind");
     }
     
     // Iterators over subexpressions.
