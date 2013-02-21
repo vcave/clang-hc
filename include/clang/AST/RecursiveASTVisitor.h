@@ -1902,7 +1902,7 @@ DEF_TRAVERSE_STMT(SwitchStmt, { })
 DEF_TRAVERSE_STMT(WhileStmt, { })
 
 //HC begin HC traverse Statement
-    
+
 DEF_TRAVERSE_STMT(HcFinishStmt, { })
 DEF_TRAVERSE_STMT(HcClauseStmt, { })
     

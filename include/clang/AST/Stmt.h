@@ -1883,101 +1883,107 @@ public:
 };
 
 ///HC Begin Habanero-C AST node implementation
-    enum HcClauseKind {
-        HC_CLAUSE_ACCUM,
-        HC_CLAUSE_IN,
-        HC_CLAUSE_OUT,
-        HC_CLAUSE_INOUT,
-        HC_CLAUSE_AWAIT,
-        HC_CLAUSE_PHASED
-    };
+enum HcClauseKind {
+    HC_CLAUSE_ACCUM,
+    HC_CLAUSE_IN,
+    HC_CLAUSE_OUT,
+    HC_CLAUSE_INOUT,
+    HC_CLAUSE_AWAIT,
+    HC_CLAUSE_PHASED
+};
     
 /// HcClauseStmt - This represents a clause statement in HC.
 /// It doesn't matter to which HC constructs it belongs.
 ///
-    class HcClauseStmt : public Stmt {
-    public:
+class HcClauseStmt : public Stmt {
+public:
 
-    private:
-        enum { EXPR_LIST, END_EXPR };
-        Stmt* SubExprs[END_EXPR];
-        
-        SourceLocation HcClauseLoc;
-        enum HcClauseKind kind;
-        
-    public:
-        
-        HcClauseStmt(SourceLocation HcClauseLoc, HcClauseKind kind, Expr *ExprList);
-        
-        /// \brief Build an empty hc clause statement.
-        explicit HcClauseStmt(EmptyShell Empty) : Stmt(HcClauseStmtClass, Empty) { }
-        Expr *getExprList() { return reinterpret_cast<Expr*>(SubExprs[EXPR_LIST]); }
-        const Expr *getExprList() const { return reinterpret_cast<Expr*>(SubExprs[EXPR_LIST]); }
-        void setExprList(Expr *E) { SubExprs[EXPR_LIST] = reinterpret_cast<Stmt*>(E); }
+private:
+    enum { EXPR_LIST, END_EXPR };
+    Stmt* SubExprs[END_EXPR];
+    
+    SourceLocation HcClauseLoc;
+    enum HcClauseKind kind;
+    
+public:
+    
+    HcClauseStmt(SourceLocation HcClauseLoc, HcClauseKind kind, Expr *ExprList);
+    
+    /// \brief Build an empty hc clause statement.
+    explicit HcClauseStmt(EmptyShell Empty) : Stmt(HcClauseStmtClass, Empty) { }
+    Expr *getExprList() { return reinterpret_cast<Expr*>(SubExprs[EXPR_LIST]); }
+    const Expr *getExprList() const { return reinterpret_cast<Expr*>(SubExprs[EXPR_LIST]); }
+    void setExprList(Expr *E) { SubExprs[EXPR_LIST] = reinterpret_cast<Stmt*>(E); }
 
-        HcClauseKind getKind() { return kind; }
-        void setKind(HcClauseKind K) { kind = K; }
+    HcClauseKind getKind() { return kind; }
+    void setKind(HcClauseKind K) { kind = K; }
 
-        SourceLocation getHcClauseLoc() const { return HcClauseLoc; }
-        void setHcClauseLoc(SourceLocation L) { HcClauseLoc = L; }
-        
-        SourceLocation getLocStart() const LLVM_READONLY { return HcClauseLoc; }
-        SourceLocation getLocEnd() const LLVM_READONLY {
-            return SubExprs[EXPR_LIST]->getLocEnd();
-        }
-        
-        std::string getKindAsString() {
-            switch (kind) {
-                case HC_CLAUSE_ACCUM:
-                    return "accum";
-                case HC_CLAUSE_IN:
-                    return "in";
-                case HC_CLAUSE_OUT:
-                    return "out";
-                case HC_CLAUSE_INOUT:
-                    return "inout";
-                case HC_CLAUSE_AWAIT:
-                    return "await";
-                case HC_CLAUSE_PHASED:
-                    return "phased";
-                default:
-                    assert(false && "Unknown HC Clause Kind");
+    SourceLocation getHcClauseLoc() const { return HcClauseLoc; }
+    void setHcClauseLoc(SourceLocation L) { HcClauseLoc = L; }
+    
+    SourceLocation getLocStart() const LLVM_READONLY { return HcClauseLoc; }
+    SourceLocation getLocEnd() const LLVM_READONLY {
+        return SubExprs[EXPR_LIST]->getLocEnd();
+    }
+    
+    std::string getKindAsString() {
+        switch (kind) {
+            case HC_CLAUSE_ACCUM: {
+                return "accum";
             }
-            return "none";
+            case HC_CLAUSE_IN: {
+                return "in";
+            }
+            case HC_CLAUSE_OUT: {
+                return "out";
+            }
+            case HC_CLAUSE_INOUT: {
+                return "inout";
+            }
+            case HC_CLAUSE_AWAIT: {
+                return "await";
+            }
+            case HC_CLAUSE_PHASED: {
+                return "phased";
+            }
+            default:
+                llvm_unreachable("Unknown HC Clause Kind");
         }
         
-        // Iterators over subexpressions.
-        child_range children() {
-            return child_range(&SubExprs[0], &SubExprs[0]+END_EXPR);
-        }
-        
-        static bool classof(const Stmt *T) {
-            return T->getStmtClass() == HcClauseStmtClass;
-        }
-    };
+    }
+    
+    // Iterators over subexpressions.
+    child_range children() {
+        return child_range(&SubExprs[0], &SubExprs[0]+END_EXPR);
+    }
+    
+    static bool classof(const Stmt *T) {
+        return T->getStmtClass() == HcClauseStmtClass;
+    }
+};
 
-/// HcFinishStmt - This represents a finish statement in HC
-///
-class HcFinishStmt : public Stmt {
+/// \brief HcConstructStmt - An abstract AST Node other HC constructs can extend.
+/// An HC construct is typically a keyword followed by one or more clauses and a body
+class HcConstructStmt : public Stmt {
     enum { BODY, END_EXPR };
     Stmt* SubExprs[END_EXPR];
     Stmt** ClausesStmts;
     unsigned NumClausesStmts;
-    SourceLocation HcFinishLoc;
+    SourceLocation HcConstructLoc;
     
 public:
-    HcFinishStmt(SourceLocation HcFinishLoc, ArrayRef<Stmt*> ClausesStmts, Stmt *body);
+    HcConstructStmt(StmtClass SC, SourceLocation HcConstructLoc, ArrayRef<Stmt*> ClausesStmts, Stmt *body);
     
-    /// \brief Build an empty hc finish statement.
-    explicit HcFinishStmt(EmptyShell Empty) : Stmt(HcFinishStmtClass, Empty), ClausesStmts(0), NumClausesStmts(0) { }
+    /// \brief Build an empty hc construct statement.
+    explicit HcConstructStmt(StmtClass SC, EmptyShell Empty) : Stmt(SC, Empty), ClausesStmts(0), NumClausesStmts(0) { };
     Stmt *getBody() { return SubExprs[BODY]; }
     const Stmt *getBody() const { return SubExprs[BODY]; }
     void setBody(Stmt *S) { SubExprs[BODY] = S; }
 
-    SourceLocation getHcFinishLoc() const { return HcFinishLoc; }
-    void setHcFinishLoc(SourceLocation L) { HcFinishLoc = L; }
+    SourceLocation getConstructLoc() const { return HcConstructLoc; }
+    void setConstructLoc(SourceLocation L) { HcConstructLoc = L; }
 
-    SourceLocation getLocStart() const LLVM_READONLY { return HcFinishLoc; }
+    SourceLocation getLocStart() const LLVM_READONLY { return HcConstructLoc; }
     SourceLocation getLocEnd() const LLVM_READONLY {
         return SubExprs[BODY]->getLocEnd();
     }
@@ -1999,6 +2005,20 @@ public:
     }
 };
 
+/// \brief HcFinishStmt - This represents a finish statement in HC
+///
+class HcFinishStmt : public HcConstructStmt {
+  public:
+    HcFinishStmt(SourceLocation HcFinishLoc, ArrayRef<Stmt*> ClausesStmts, Stmt *Body) :
+        HcConstructStmt(HcFinishStmtClass, HcFinishLoc, ClausesStmts, Body) { }
+    
+    /// \brief Build an empty hc finish statement.
+    explicit HcFinishStmt(EmptyShell Empty) : HcConstructStmt(HcFinishStmtClass, Empty) { }
+
+    static bool classof(const Stmt *T) {
+        return T->getStmtClass() == HcFinishStmtClass;
+    }
+};
 ///HC Ending Habanero-C AST node implementation
 
 }  // end namespace clang

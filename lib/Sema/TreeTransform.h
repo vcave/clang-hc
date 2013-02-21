@@ -8983,7 +8983,7 @@ TreeTransform<Derived>::TransformHcFinishStmt(HcFinishStmt *S) {
         !SubStmtChanged)
         return Owned(S);
     
-    return getDerived().RebuildHcFinishStmt(S->getHcFinishLoc(), ClausesStmts, Body.get());
+    return getDerived().RebuildHcFinishStmt(S->getConstructLoc(), ClausesStmts, Body.get());
 }
 
 template<typename Derived>

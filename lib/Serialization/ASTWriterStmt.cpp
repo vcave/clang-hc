@@ -1533,14 +1533,18 @@ void ASTStmtWriter::VisitAsTypeExpr(AsTypeExpr *E) {
 // HC Expressions and Statements.
 //===----------------------------------------------------------------------===//
 
-void ASTStmtWriter::VisitHcFinishStmt(HcFinishStmt *S) {
+void ASTStmtWriter::VisitHcConstructStmt(HcConstructStmt *S) {
     VisitStmt(S);
     Writer.AddStmt(S->getBody());
     Record.push_back(S->hc_clauses_size());
     for (CompoundStmt::body_iterator CS = S->hc_clauses_begin(), CSEnd = S->hc_clauses_end();
          CS != CSEnd; ++CS)
         Writer.AddStmt(*CS);
-    Writer.AddSourceLocation(S->getHcFinishLoc(), Record);
+    Writer.AddSourceLocation(S->getConstructLoc(), Record);
+}
+
+void ASTStmtWriter::VisitHcFinishStmt(HcFinishStmt *S) {
+    VisitHcConstructStmt(S);
     Code = serialization::STMT_HCFINISH;
 }
 

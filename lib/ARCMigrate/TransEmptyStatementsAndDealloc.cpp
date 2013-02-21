@@ -149,7 +149,7 @@ public:
 //HC
 // Begin Habanero-C Empty statement visitor implementation
     
-  bool VisitHcFinishStmt(HcFinishStmt *S) {
+  bool VisitHcConstructStmt(HcConstructStmt *S) {
     if (!S->hc_clauses_empty())
       return false;
     if (!S->getBody())

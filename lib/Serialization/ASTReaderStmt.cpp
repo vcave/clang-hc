@@ -1553,6 +1553,10 @@ void ASTStmtReader::VisitAsTypeExpr(AsTypeExpr *E) {
 //===----------------------------------------------------------------------===//
 
 void ASTStmtReader::VisitHcFinishStmt(HcFinishStmt *S) {
+    VisitHcConstructStmt(S);
+}
+
+void ASTStmtReader::VisitHcConstructStmt(HcConstructStmt *S) {
     VisitStmt(S);
     S->setBody(Reader.ReadSubStmt());
     SmallVector<Stmt *, 4> Stmts;
@@ -1560,7 +1564,7 @@ void ASTStmtReader::VisitHcFinishStmt(HcFinishStmt *S) {
     while (NumStmts--)
         Stmts.push_back(Reader.ReadSubStmt());
     S->setClausesStmts(Reader.getContext(), Stmts.data(), Stmts.size());
-    S->setHcFinishLoc(ReadSourceLocation(Record, Idx));
+    S->setConstructLoc(ReadSourceLocation(Record, Idx));
 }
 
 void ASTStmtReader::VisitHcClauseStmt(HcClauseStmt *S) {
