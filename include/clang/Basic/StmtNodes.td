@@ -28,6 +28,9 @@ def SwitchCase : Stmt<1>;
 def CaseStmt : DStmt<SwitchCase>;
 def DefaultStmt : DStmt<SwitchCase>;
 
+//HC statements
+def HcFinishStmt  : Stmt;
+
 // Asm statements
 def AsmStmt : Stmt<1>;
 def GCCAsmStmt : DStmt<AsmStmt>;

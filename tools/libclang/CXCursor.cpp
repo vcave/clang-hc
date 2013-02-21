@@ -484,8 +484,14 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
   case Stmt::MSDependentExistsStmtClass:
     K = CXCursor_UnexposedStmt;
     break;
+    
+  //HC begin Habanero-C cursors
+  case Stmt::HcFinishStmtClass:
+    K = CXCursor_HcFinishStmt;
+    break;
   }
-  
+  //HC end Habanero-C cursors
+
   CXCursor C = { K, 0, { Parent, S, TU } };
   return C;
 }

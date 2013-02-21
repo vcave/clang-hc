@@ -741,6 +741,8 @@ static InputKind ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
       .Case("c", IK_C)
       .Case("cl", IK_OpenCL)
       .Case("cuda", IK_CUDA)
+//HC add Input Token for HC
+      .Case("hc", IK_HC)
       .Case("c++", IK_CXX)
       .Case("objective-c", IK_ObjC)
       .Case("objective-c++", IK_ObjCXX)
@@ -926,6 +928,9 @@ void CompilerInvocation::setLangDefaults(LangOptions &Opts, InputKind IK,
       llvm_unreachable("Invalid input kind!");
     case IK_OpenCL:
       LangStd = LangStandard::lang_opencl;
+      break;
+    case IK_HC:
+      LangStd = LangStandard::lang_hc;
       break;
     case IK_CUDA:
       LangStd = LangStandard::lang_cuda;

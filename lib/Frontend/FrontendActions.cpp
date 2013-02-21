@@ -429,6 +429,7 @@ void PrintPreprocessedAction::ExecuteAction() {
                            CI.getPreprocessorOutputOpts());
 }
 
+//HC add InputKind for HC
 void PrintPreambleAction::ExecuteAction() {
   switch (getCurrentFileKind()) {
   case IK_C:
@@ -436,6 +437,7 @@ void PrintPreambleAction::ExecuteAction() {
   case IK_ObjC:
   case IK_ObjCXX:
   case IK_OpenCL:
+  case IK_HC:
   case IK_CUDA:
     break;
       

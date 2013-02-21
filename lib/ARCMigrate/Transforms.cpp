@@ -286,7 +286,15 @@ public:
     mark(S->getBody());
     return true;
   }
-  
+
+//#HC
+// Begin Habanero-C visitor implementation
+  bool VisitHcFinishStmt(HcFinishStmt *S) {
+    mark(S->getBody());
+    return true;
+  }
+// End Habanero-C visitor implementation
+    
 private:
   void mark(Stmt *S) {
     if (!S) return;

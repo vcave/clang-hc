@@ -102,6 +102,7 @@ namespace {
     KEYNOCXX = 0x80,
     KEYBORLAND = 0x100,
     KEYOPENCL = 0x200,
+    KEYHC = 0x300, //HC
     KEYC11 = 0x400,
     KEYARC = 0x800,
     KEYNOMS = 0x01000,
@@ -133,6 +134,7 @@ static void AddKeyword(StringRef Keyword,
   else if (LangOpts.WChar && (Flags & WCHARSUPPORT)) AddResult = 2;
   else if (LangOpts.AltiVec && (Flags & KEYALTIVEC)) AddResult = 2;
   else if (LangOpts.OpenCL && (Flags & KEYOPENCL)) AddResult = 2;
+  else if (LangOpts.HC && (Flags & KEYHC)) AddResult = 2;
   else if (!LangOpts.CPlusPlus && (Flags & KEYNOCXX)) AddResult = 2;
   else if (LangOpts.C11 && (Flags & KEYC11)) AddResult = 2;
   // We treat bridge casts as objective-C keywords so we can warn on them

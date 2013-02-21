@@ -1547,6 +1547,17 @@ void ASTStmtReader::VisitAsTypeExpr(AsTypeExpr *E) {
   E->SrcExpr = Reader.ReadSubExpr();
 }
 
+//#HC
+//===----------------------------------------------------------------------===//
+// HC Expressions and Statements.
+//===----------------------------------------------------------------------===//
+
+void ASTStmtReader::VisitHcFinishStmt(HcFinishStmt *S) {
+    VisitStmt(S);
+    S->setBody(Reader.ReadSubStmt());
+    S->setHcFinishLoc(ReadSourceLocation(Record, Idx));
+}
+
 //===----------------------------------------------------------------------===//
 // ASTReader Implementation
 //===----------------------------------------------------------------------===//
@@ -1709,6 +1720,10 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case STMT_MSASM:
       S = new (Context) MSAsmStmt(Empty);
+      break;
+//#HC
+    case STMT_HCFINISH:
+      S = new (Context) HcFinishStmt(Empty);
       break;
 
     case EXPR_PREDEFINED:

@@ -1280,6 +1280,10 @@ namespace clang {
 
       // OpenCL
       EXPR_ASTYPE,                 // AsTypeExpr
+      
+      //#HC
+      // HC
+      STMT_HCFINISH,              // HcFinishStmt
 
       // Microsoft
       EXPR_CXX_UUIDOF_EXPR,       // CXXUuidofExpr (of expr).

@@ -642,7 +642,7 @@ public:
   /// parser enters the new scope, and this object's constructor will
   /// create that new scope. Similarly, once the object is destroyed
   /// the parser will exit the scope.
-  class ParseScope {
+class ParseScope {
     Parser *Self;
     ParseScope(const ParseScope &) LLVM_DELETED_FUNCTION;
     void operator=(const ParseScope &) LLVM_DELETED_FUNCTION;
@@ -1539,6 +1539,11 @@ private:
   StmtResult ParseObjCSynchronizedStmt(SourceLocation atLoc);
   StmtResult ParseObjCAutoreleasePoolStmt(SourceLocation atLoc);
 
+  //===--------------------------------------------------------------------===//
+  // Habanero-C Statements
+  //#HC
+
+  StmtResult ParseHcFinishStatement(SourceLocation *TrailingElseLoc);
 
   //===--------------------------------------------------------------------===//
   // C99 6.7: Declarations.

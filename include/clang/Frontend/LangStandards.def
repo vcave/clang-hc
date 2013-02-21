@@ -131,4 +131,9 @@ LANGSTANDARD(cuda, "cuda",
              "NVIDIA CUDA(tm)",
              LineComment | CPlusPlus | Digraphs)
 
+//HC
+LANGSTANDARD(hc, "hc",
+             "HC 1.0",
+             LineComment | C99)
+
 #undef LANGSTANDARD

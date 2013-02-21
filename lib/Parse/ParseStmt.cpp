@@ -48,6 +48,8 @@ using namespace clang;
 /// [OBC]   objc-synchronized-statement
 /// [GNU]   asm-statement
 /// [OMP]   openmp-construct             [TODO]
+// HC
+/// [HC]    finish-statement
 ///
 ///       labeled-statement:
 ///         identifier ':' statement
@@ -288,7 +290,11 @@ Retry:
     ProhibitAttributes(Attrs);
     HandlePragmaOpenCLExtension();
     return StmtEmpty();
+///#HC begin statements
+  case tok::kw_finish:
+    return ParseHcFinishStatement(TrailingElseLoc);
   }
+///#HC end statements
 
   // If we reached this code, the statement must end in a semicolon.
   if (Tok.is(tok::semi)) {
@@ -1149,6 +1155,35 @@ StmtResult Parser::ParseSwitchStatement(SourceLocation *TrailingElseLoc) {
 
   return Actions.ActOnFinishSwitchStmt(SwitchLoc, Switch.get(), Body.get());
 }
+
+///#HC Begin Habanero-C Statement Construct parsing 
+/// ParseHcFinishStatement
+///       finish-statement:
+///         'finish' statement
+StmtResult Parser::ParseHcFinishStatement(SourceLocation *TrailingElseLoc) {
+    assert(Tok.is(tok::kw_finish) && "Not a finish stmt!");
+    SourceLocation FinishLoc = Tok.getLocation();
+    ConsumeToken();  // eat the 'finish'.
+
+    // A finish block defines a new scope
+    ParseScope FinishScope(this, Scope::DeclScope);
+    
+    // Read the body statement.
+    StmtResult Body(ParseStatement(TrailingElseLoc));
+    
+    // Pop the body scope if needed.
+    FinishScope.Exit();
+    
+    // If there's been any parsing error in the body
+    // return an error
+    if (Body.isInvalid())
+        return StmtError();
+
+    // Else, go ahead and build the Finish AST Node
+    return Actions.ActOnHcFinishStmt(FinishLoc, Body.get());
+}
+
+///#HC Ending Habanero-C Statement Construct parsing 
 
 /// ParseWhileStatement
 ///       while-statement: [C99 6.8.5.1]

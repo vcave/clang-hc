@@ -1199,3 +1199,12 @@ void Stmt::Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Context,
   StmtProfiler Profiler(ID, Context, Canonical);
   Profiler.Visit(this);
 }
+
+//#HC
+// Begin Habanero-C StmtProfiler visitor implementation
+
+void StmtProfiler::VisitHcFinishStmt(const HcFinishStmt *S) {
+    VisitStmt(S);
+}
+
+// End Habanero-C StmtProfiler visitor implementation

@@ -57,6 +57,7 @@ namespace frontend {
   };
 }
 
+///HC add HC input kind
 enum InputKind {
   IK_None,
   IK_Asm,
@@ -70,6 +71,7 @@ enum InputKind {
   IK_PreprocessedObjCXX,
   IK_OpenCL,
   IK_CUDA,
+  IK_HC,
   IK_AST,
   IK_LLVM_IR
 };

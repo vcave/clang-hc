@@ -876,7 +876,7 @@ public:
   /// If this IfStmt has a condition variable, return the faux DeclStmt
   /// associated with the creation of that condition variable.
   const DeclStmt *getConditionVariableDeclStmt() const {
-    return reinterpret_cast<DeclStmt*>(SubExprs[VAR]);
+return reinterpret_cast<DeclStmt*>(SubExprs[VAR]);
   }
 
   const Expr *getCond() const { return reinterpret_cast<Expr*>(SubExprs[COND]);}
@@ -1881,6 +1881,44 @@ public:
     return T->getStmtClass() == SEHTryStmtClass;
   }
 };
+
+///HC Begin Habanero-C AST node implementation
+/// HcFinishStmt - This represents a finish statement in HC
+///
+class HcFinishStmt : public Stmt {
+    enum { BODY, END_EXPR };
+    Stmt* SubExprs[END_EXPR];
+    
+    SourceLocation HcFinishLoc;
+    
+public:
+    HcFinishStmt(SourceLocation HcFinishLoc, Stmt *body);
+    
+    /// \brief Build an empty hc finish statement.
+    explicit HcFinishStmt(EmptyShell Empty) : Stmt(HcFinishStmtClass, Empty) { }
+    Stmt *getBody() { return SubExprs[BODY]; }
+    const Stmt *getBody() const { return SubExprs[BODY]; }
+    void setBody(Stmt *S) { SubExprs[BODY] = S; }
+    
+    SourceLocation getHcFinishLoc() const { return HcFinishLoc; }
+    void setHcFinishLoc(SourceLocation L) { HcFinishLoc = L; }
+
+    SourceLocation getLocStart() const LLVM_READONLY { return HcFinishLoc; }
+    SourceLocation getLocEnd() const LLVM_READONLY {
+        return SubExprs[BODY]->getLocEnd();
+    }
+    
+    // Iterators over subexpressions.
+    child_range children() {
+        return child_range(&SubExprs[0], &SubExprs[0]+END_EXPR);
+    }
+    
+    static bool classof(const Stmt *T) {
+        return T->getStmtClass() == HcFinishStmtClass;
+    }
+};
+
+///HC Ending Habanero-C AST node implementation
 
 }  // end namespace clang
 

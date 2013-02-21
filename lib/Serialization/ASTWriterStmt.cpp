@@ -1528,6 +1528,18 @@ void ASTStmtWriter::VisitAsTypeExpr(AsTypeExpr *E) {
   Code = serialization::EXPR_ASTYPE;
 }
 
+//#HC
+//===----------------------------------------------------------------------===//
+// HC Expressions and Statements.
+//===----------------------------------------------------------------------===//
+
+void ASTStmtWriter::VisitHcFinishStmt(HcFinishStmt *S) {
+    VisitStmt(S);
+    Writer.AddStmt(S->getBody());
+    Writer.AddSourceLocation(S->getHcFinishLoc(), Record);
+    Code = serialization::STMT_HCFINISH;
+}
+
 //===----------------------------------------------------------------------===//
 // Microsoft Expressions and Statements.
 //===----------------------------------------------------------------------===//

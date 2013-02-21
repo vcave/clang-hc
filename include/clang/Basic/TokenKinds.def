@@ -541,6 +541,14 @@ ALIAS("__char32_t"   , char32_t   , KEYCXX)
 // Clang-specific keywords enabled only in testing.
 TESTING_KEYWORD(__unknown_anytype , KEYALL)
 
+//===----------------------------------------------------------------------===//
+// HABANERO-C keywords
+//===----------------------------------------------------------------------===//
+
+// HC
+// HC-TODO: See if we can add a KEYHC
+KEYWORD(async                        , KEYALL)
+KEYWORD(finish                       , KEYALL)
 
 //===----------------------------------------------------------------------===//
 // Objective-C @-preceded keywords.

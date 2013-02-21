@@ -1023,3 +1023,13 @@ SEHFinallyStmt* SEHFinallyStmt::Create(ASTContext &C,
                                        Stmt *Block) {
   return new(C)SEHFinallyStmt(Loc,Block);
 }
+
+///HC Begin Habanero-C Statement-based AST node implementation
+
+HcFinishStmt::HcFinishStmt(SourceLocation HcFinishLoc, Stmt *body)
+    : Stmt(HcFinishStmtClass), HcFinishLoc(HcFinishLoc)
+{
+    SubExprs[BODY] = body;
+}
+
+///HC End Habanero-C Statement-based AST node implementation

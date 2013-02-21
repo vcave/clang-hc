@@ -2522,6 +2522,18 @@ public:
     return new (SemaRef.Context) AtomicExpr(BuiltinLoc, SubExprs, RetTy, Op,
                                             RParenLoc);
   }
+    
+//#HC begin Habanero-C rebuild statements
+
+  /// \brief Build a new hc finish statement.
+  ///
+  /// By default, performs semantic analysis to build the new statement.
+  /// Subclasses may override this routine to provide different behavior.
+  StmtResult RebuildHcFinishStmt(SourceLocation HcFinishLoc, Stmt *Body) {
+    return getSema().ActOnHcFinishStmt(HcFinishLoc, Body);
+  }
+
+//#HC end Habanero-C rebuild statements
 
 private:
   TypeLoc TransformTypeInObjectScope(TypeLoc TL,
@@ -8932,6 +8944,26 @@ TreeTransform<Derived>::TransformAtomicExpr(AtomicExpr *E) {
   return getDerived().RebuildAtomicExpr(E->getBuiltinLoc(), SubExprs,
                                         RetTy, E->getOp(), E->getRParenLoc());
 }
+
+    
+//#HC begin Habanero-C Statement Transform implementation
+
+    template<typename Derived>
+    StmtResult
+    TreeTransform<Derived>::TransformHcFinishStmt(HcFinishStmt *S) {
+        // Transform the body
+        StmtResult Body = getDerived().TransformStmt(S->getBody());
+        if (Body.isInvalid())
+            return StmtError();
+        
+        if (!getDerived().AlwaysRebuild() &&
+            Body.get() == S->getBody())
+            return Owned(S);
+        
+        return getDerived().RebuildHcFinishStmt(S->getHcFinishLoc(), Body.get());
+    }
+
+//#HC end Habanero-C Statement Transform implementation
 
 //===----------------------------------------------------------------------===//
 // Type reconstruction

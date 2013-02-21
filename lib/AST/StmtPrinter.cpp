@@ -1859,6 +1859,16 @@ void StmtPrinter::VisitAsTypeExpr(AsTypeExpr *Node) {
   OS << ")";
 }
 
+//#HC
+// Begin Habanero-C statement unparsing
+
+void StmtPrinter::VisitHcFinishStmt(HcFinishStmt *Node) {
+    Indent() << "finish ";
+    PrintStmt(Node->getBody());
+}
+
+// End Habanero-C statement unparsing 
+
 //===----------------------------------------------------------------------===//
 // Stmt method implementations
 //===----------------------------------------------------------------------===//

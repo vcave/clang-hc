@@ -1185,6 +1185,25 @@ Sema::ActOnDoStmt(SourceLocation DoLoc, Stmt *Body,
   return Owned(new (Context) DoStmt(Body, Cond, DoLoc, WhileLoc, CondRParen));
 }
 
+///#HC Begin ActOn for Habanero-C
+
+StmtResult
+Sema::ActOnHcFinishStmt(SourceLocation FinishLoc, Stmt *Body) {
+
+    DiagnoseUnusedExprResult(Body);
+    
+    //HC-TODO not sure it's correct to just take the start location
+    //of the body and compare it with the body (i.e its end location).
+    DiagnoseEmptyStmtBody(Body->getLocStart(), Body,
+                          diag::warn_empty_if_body);
+    
+    //HC-TODO not sure we need to pass the context down as it's done
+    //for if-stmt
+    return Owned(new (Context) HcFinishStmt(FinishLoc, Body));
+}
+
+///#HC End ActOn for Habanero-C
+
 namespace {
   // This visitor will traverse a conditional statement and store all
   // the evaluated decls into a vector.  Simple is set to true if none

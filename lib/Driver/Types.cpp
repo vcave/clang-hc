@@ -70,6 +70,7 @@ bool types::canLipoType(ID Id) {
           Id == TY_LTO_BC);
 }
 
+//HC add HC as an accepted language
 bool types::isAcceptedByClang(ID Id) {
   switch (Id) {
   default:
@@ -79,6 +80,7 @@ bool types::isAcceptedByClang(ID Id) {
   case TY_C: case TY_PP_C:
   case TY_CL:
   case TY_CUDA:
+  case TY_HC:
   case TY_ObjC: case TY_PP_ObjC: case TY_PP_ObjC_Alias:
   case TY_CXX: case TY_PP_CXX:
   case TY_ObjCXX: case TY_PP_ObjCXX: case TY_PP_ObjCXX_Alias:
@@ -120,6 +122,7 @@ bool types::isCXX(ID Id) {
   }
 }
 
+//HC Add hc extension as a .Case, see also Types.def
 types::ID types::lookupTypeForExtension(const char *Ext) {
   return llvm::StringSwitch<types::ID>(Ext)
            .Case("c", TY_C)
@@ -141,6 +144,7 @@ types::ID types::lookupTypeForExtension(const char *Ext) {
            .Case("cc", TY_CXX)
            .Case("CC", TY_CXX)
            .Case("cl", TY_CL)
+           .Case("hc", TY_HC)
            .Case("cp", TY_CXX)
            .Case("cu", TY_CUDA)
            .Case("hh", TY_CXXHeader)

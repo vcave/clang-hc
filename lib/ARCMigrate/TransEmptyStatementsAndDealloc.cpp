@@ -146,6 +146,16 @@ public:
       return false;
     return Visit(S->getSubStmt());
   }
+//#HC
+// Begin Habanero-C Empty statement visitor implementation
+
+  bool VisitHcFinishStmt(HcFinishStmt *S) {
+    if (!S->getBody())
+      return false;
+    return Visit(S->getBody());
+  }
+
+// End Habanero-C Empty statement visitor implementation
 };
 
 class EmptyStatementsRemover :

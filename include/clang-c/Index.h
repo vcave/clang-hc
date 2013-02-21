@@ -2095,7 +2095,13 @@ enum CXCursorKind {
    */
   CXCursor_ModuleImportDecl              = 600,
   CXCursor_FirstExtraDecl                = CXCursor_ModuleImportDecl,
-  CXCursor_LastExtraDecl                 = CXCursor_ModuleImportDecl
+  CXCursor_LastExtraDecl                 = CXCursor_ModuleImportDecl,
+
+  /*HC*/
+  /* HC Declarations */
+  /** \brief A Habanero-C finish statement.
+   */
+  CXCursor_HcFinishStmt                  = 700
 };
 
 /**
