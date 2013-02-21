@@ -1552,6 +1552,10 @@ void ASTStmtReader::VisitAsTypeExpr(AsTypeExpr *E) {
 // HC Expressions and Statements.
 //===----------------------------------------------------------------------===//
 
+void ASTStmtReader::VisitHcAsyncStmt(HcAsyncStmt *S) {
+    VisitHcConstructStmt(S);
+}
+
 void ASTStmtReader::VisitHcFinishStmt(HcFinishStmt *S) {
     VisitHcConstructStmt(S);
 }
@@ -1739,6 +1743,10 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
       S = new (Context) MSAsmStmt(Empty);
       break;
 //HC
+    case STMT_HCASYNC:
+      S = new (Context) HcAsyncStmt(Empty);
+      break;
+
     case STMT_HCFINISH:
       S = new (Context) HcFinishStmt(Empty);
       break;

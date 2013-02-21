@@ -1543,6 +1543,11 @@ void ASTStmtWriter::VisitHcConstructStmt(HcConstructStmt *S) {
     Writer.AddSourceLocation(S->getConstructLoc(), Record);
 }
 
+void ASTStmtWriter::VisitHcAsyncStmt(HcAsyncStmt *S) {
+    VisitHcConstructStmt(S);
+    Code = serialization::STMT_HCASYNC;
+}
+
 void ASTStmtWriter::VisitHcFinishStmt(HcFinishStmt *S) {
     VisitHcConstructStmt(S);
     Code = serialization::STMT_HCFINISH;

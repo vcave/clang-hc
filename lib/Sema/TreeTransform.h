@@ -2525,6 +2525,14 @@ public:
     
 //HC begin Habanero-C rebuild statements
 
+  /// \brief Build a new hc async statement.
+  ///
+  /// By default, performs semantic analysis to build the new statement.
+  /// Subclasses may override this routine to provide different behavior.
+  StmtResult RebuildHcAsyncStmt(SourceLocation HcAsyncLoc, MultiStmtArg ClausesStmts, Stmt *Body) {
+    return getSema().ActOnHcAsyncStmt(HcAsyncLoc, ClausesStmts, Body);
+  }
+
   /// \brief Build a new hc finish statement.
   ///
   /// By default, performs semantic analysis to build the new statement.
@@ -8953,8 +8961,37 @@ TreeTransform<Derived>::TransformAtomicExpr(AtomicExpr *E) {
                                         RetTy, E->getOp(), E->getRParenLoc());
 }
 
-    
 //HC begin Habanero-C Statement Transform implementation
+
+template<typename Derived>
+StmtResult
+TreeTransform<Derived>::TransformHcAsyncStmt(HcAsyncStmt *S) {
+    // Transform clauses
+    bool SubStmtChanged = false;
+    SmallVector<Stmt*, 8> ClausesStmts;
+    for (HcAsyncStmt::hc_clauses_iterator B = S->hc_clauses_begin(), BEnd = S->hc_clauses_end();
+         B != BEnd; ++B) {
+        StmtResult Result = getDerived().TransformStmt(*B);
+        if (Result.isInvalid()) {
+            return StmtError();
+        }
+        
+        SubStmtChanged = SubStmtChanged || Result.get() != *B;
+        ClausesStmts.push_back(Result.takeAs<Stmt>());
+    }
+    
+    // Transform the body
+    StmtResult Body = getDerived().TransformStmt(S->getBody());
+    if (Body.isInvalid())
+        return StmtError();
+    
+    if (!getDerived().AlwaysRebuild() &&
+        Body.get() == S->getBody() &&
+        !SubStmtChanged)
+        return Owned(S);
+    
+    return getDerived().RebuildHcAsyncStmt(S->getConstructLoc(), ClausesStmts, Body.get());
+}
 
 template<typename Derived>
 StmtResult
@@ -8966,13 +9003,13 @@ TreeTransform<Derived>::TransformHcFinishStmt(HcFinishStmt *S) {
          B != BEnd; ++B) {
         StmtResult Result = getDerived().TransformStmt(*B);
         if (Result.isInvalid()) {
-                return StmtError();
+            return StmtError();
         }
         
         SubStmtChanged = SubStmtChanged || Result.get() != *B;
         ClausesStmts.push_back(Result.takeAs<Stmt>());
     }
-
+    
     // Transform the body
     StmtResult Body = getDerived().TransformStmt(S->getBody());
     if (Body.isInvalid())

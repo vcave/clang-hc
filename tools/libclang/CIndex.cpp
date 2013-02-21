@@ -3730,6 +3730,8 @@ CXString clang_getCursorKindSpelling(enum CXCursorKind Kind) {
   case CXCursor_ModuleImportDecl:
     return cxstring::createRef("ModuleImport");
 //HC Begin Habanero-C cursor definitions
+  case CXCursor_HcAsyncStmt:
+      return cxstring::createRef("HcAsyncStmt");
   case CXCursor_HcFinishStmt:
     return cxstring::createRef("HcFinishStmt");
   case CXCursor_HcClauseStmt:

@@ -290,9 +290,13 @@ Retry:
     ProhibitAttributes(Attrs);
     HandlePragmaOpenCLExtension();
     return StmtEmpty();
+
 ///HC begin statements
   case tok::kw_finish:
     return ParseHcFinishStatement(TrailingElseLoc);
+
+  case tok::kw_async:
+    return ParseHcAsyncStatement(TrailingElseLoc);
   }
 ///HC end statements
 
@@ -1156,27 +1160,58 @@ StmtResult Parser::ParseSwitchStatement(SourceLocation *TrailingElseLoc) {
   return Actions.ActOnFinishSwitchStmt(SwitchLoc, Switch.get(), Body.get());
 }
 
-///HC Begin Habanero-C Statement Construct parsing 
-/// ParseHcFinishStatement
-///       finish-statement:
-///         'finish' statement
-StmtResult Parser::ParseHcFinishStatement(SourceLocation *TrailingElseLoc) {
-    assert(Tok.is(tok::kw_finish) && "Not a finish stmt!");
-    SourceLocation FinishLoc = Tok.getLocation();
-    ConsumeToken();  // eat the 'finish'.
-
+///HC Begin Habanero-C Statement async parsing
+/// ParseHcAsyncStatement
+///       async-statement:
+///         'async' statement
+StmtResult Parser::ParseHcAsyncStatement(SourceLocation *TrailingElseLoc) {
+    assert(Tok.is(tok::kw_async) && "Not an async stmt!");
+    SourceLocation ConstructLoc = Tok.getLocation();
+    ConsumeToken();  // eat the keyword.
+    
     // Process optional clauses
     StmtVector ClausesDecls;
     ParseHcFinishClauses(ClausesDecls);
-
-    // A finish block defines a new scope
-    ParseScope FinishScope(this, Scope::DeclScope);
+    
+    // A HC construct block defines a new scope
+    ParseScope HcConstructScope(this, Scope::DeclScope);
     
     // Read the body statement.
     StmtResult Body(ParseStatement(TrailingElseLoc));
     
     // Pop the body scope if needed.
-    FinishScope.Exit();
+    HcConstructScope.Exit();
+    
+    // If there's been any parsing error in the body
+    // return an error
+    if (Body.isInvalid())
+        return StmtError();
+    
+    // Else, go ahead and build the Finish AST Node
+    return Actions.ActOnHcAsyncStmt(ConstructLoc, ClausesDecls, Body.get());
+}
+
+///HC Begin Habanero-C Statement finish parsing
+/// ParseHcFinishStatement
+///       finish-statement:
+///         'finish' statement
+StmtResult Parser::ParseHcFinishStatement(SourceLocation *TrailingElseLoc) {
+    assert(Tok.is(tok::kw_finish) && "Not a finish stmt!");
+    SourceLocation ConstructLoc = Tok.getLocation();
+    ConsumeToken();  // eat the keyword.
+
+    // Process optional clauses
+    StmtVector ClausesDecls;
+    ParseHcFinishClauses(ClausesDecls);
+
+    // A HC construct block defines a new scope
+    ParseScope HcConstructScope(this, Scope::DeclScope);
+        
+    // Read the body statement.
+    StmtResult Body(ParseStatement(TrailingElseLoc));
+    
+    // Pop the body scope if needed.
+    HcConstructScope.Exit();
     
     // If there's been any parsing error in the body
     // return an error
@@ -1184,7 +1219,7 @@ StmtResult Parser::ParseHcFinishStatement(SourceLocation *TrailingElseLoc) {
         return StmtError();
 
     // Else, go ahead and build the Finish AST Node
-    return Actions.ActOnHcFinishStmt(FinishLoc, ClausesDecls, Body.get());
+    return Actions.ActOnHcFinishStmt(ConstructLoc, ClausesDecls, Body.get());
 }
 
 

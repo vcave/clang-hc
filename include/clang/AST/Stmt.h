@@ -2001,16 +2001,32 @@ public:
     }
     
     static bool classof(const Stmt *T) {
-        return T->getStmtClass() == HcFinishStmtClass;
+        return T->getStmtClass() == HcFinishStmtClass ||
+               T->getStmtClass() == HcAsyncStmtClass;
     }
 };
 
+/// \brief HcAsyncStmt - This represents an async statement in HC
+///
+class HcAsyncStmt : public HcConstructStmt {
+public:
+    HcAsyncStmt(SourceLocation ConstructLoc, ArrayRef<Stmt*> ClausesStmts, Stmt *Body) :
+    HcConstructStmt(HcAsyncStmtClass, ConstructLoc, ClausesStmts, Body) { }
+    
+    /// \brief Build an empty hc async statement.
+    explicit HcAsyncStmt(EmptyShell Empty) : HcConstructStmt(HcAsyncStmtClass, Empty) { }
+    
+    static bool classof(const Stmt *T) {
+        return T->getStmtClass() == HcAsyncStmtClass;
+    }
+};
+    
 /// \brief HcFinishStmt - This represents a finish statement in HC
 ///
 class HcFinishStmt : public HcConstructStmt {
   public:
-    HcFinishStmt(SourceLocation HcFinishLoc, ArrayRef<Stmt*> ClausesStmts, Stmt *Body) :
-        HcConstructStmt(HcFinishStmtClass, HcFinishLoc, ClausesStmts, Body) { }
+    HcFinishStmt(SourceLocation ConstructLoc, ArrayRef<Stmt*> ClausesStmts, Stmt *Body) :
+        HcConstructStmt(HcFinishStmtClass, ConstructLoc, ClausesStmts, Body) { }
     
     /// \brief Build an empty hc finish statement.
     explicit HcFinishStmt(EmptyShell Empty) : HcConstructStmt(HcFinishStmtClass, Empty) { }

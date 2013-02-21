@@ -1862,6 +1862,18 @@ void StmtPrinter::VisitAsTypeExpr(AsTypeExpr *Node) {
 //HC
 // Begin Habanero-C statement unparsing
 
+void StmtPrinter::VisitHcAsyncStmt(HcAsyncStmt *Node) {
+    Indent() << "async ";
+    HcFinishStmt::hc_clauses_iterator B = Node->hc_clauses_begin();
+    for (HcFinishStmt::hc_clauses_iterator I = B, E = Node->hc_clauses_end();
+         I != E; ++I) {
+        if (I != B)
+            OS << ", ";
+        PrintStmt(*I);
+    }
+    PrintStmt(Node->getBody());
+}
+
 void StmtPrinter::VisitHcFinishStmt(HcFinishStmt *Node) {
     Indent() << "finish ";
     HcFinishStmt::hc_clauses_iterator B = Node->hc_clauses_begin();

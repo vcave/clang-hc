@@ -1826,7 +1826,7 @@ DEF_TRAVERSE_STMT(SwitchStmt, { })
 DEF_TRAVERSE_STMT(WhileStmt, { })
 
 //HC begin traverse for Habanero-C statements
-
+DEF_TRAVERSE_STMT(HcAsyncStmt,  { })
 DEF_TRAVERSE_STMT(HcFinishStmt, { })
 DEF_TRAVERSE_STMT(HcClauseStmt, { })
 

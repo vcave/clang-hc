@@ -2680,6 +2680,10 @@ public:
   StmtResult FinishObjCForCollectionStmt(Stmt *ForCollection, Stmt *Body);
 
   ///HC
+  StmtResult ActOnHcAsyncStmt(SourceLocation AsyncLoc,
+                              MultiStmtArg ClausesStmts,
+                              Stmt *Body);
+
   StmtResult ActOnHcFinishStmt(SourceLocation FinishLoc,
                                MultiStmtArg ClausesStmts,
                                Stmt *Body);

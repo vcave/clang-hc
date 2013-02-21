@@ -1542,7 +1542,7 @@ private:
   //===--------------------------------------------------------------------===//
   // Habanero-C Statements
   //HC
-
+  StmtResult ParseHcAsyncStatement(SourceLocation *TrailingElseLoc);
   StmtResult ParseHcFinishStatement(SourceLocation *TrailingElseLoc);
   void ParseHcFinishClauses(StmtVector &ClausesDecls);
   ExprResult ParseHcClauseVarList();

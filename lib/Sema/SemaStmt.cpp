@@ -1188,7 +1188,24 @@ Sema::ActOnDoStmt(SourceLocation DoLoc, Stmt *Body,
 ///HC Begin ActOn for Habanero-C
 
 StmtResult
-Sema::ActOnHcFinishStmt(SourceLocation FinishLoc, MultiStmtArg ClausesStmts, Stmt *Body) {
+Sema::ActOnHcAsyncStmt(SourceLocation ConstructLoc, MultiStmtArg ClausesStmts, Stmt *Body) {
+    unsigned NumElts = ClausesStmts.size();
+    Stmt **Elts = ClausesStmts.data();
+    
+    DiagnoseUnusedExprResult(Body);
+    
+    //HC-TODO not sure it's correct to just take the start location
+    //of the body and compare it with the body (i.e its end location).
+    DiagnoseEmptyStmtBody(Body->getLocStart(), Body,
+                          diag::warn_empty_if_body);
+    
+    //HC-TODO not sure we need to pass the context down as it's done
+    //for if-stmt
+    return Owned(new (Context) HcAsyncStmt(ConstructLoc, llvm::makeArrayRef(Elts, NumElts), Body));
+}
+
+StmtResult
+Sema::ActOnHcFinishStmt(SourceLocation ConstructLoc, MultiStmtArg ClausesStmts, Stmt *Body) {
     unsigned NumElts = ClausesStmts.size();
     Stmt **Elts = ClausesStmts.data();
 
@@ -1201,7 +1218,7 @@ Sema::ActOnHcFinishStmt(SourceLocation FinishLoc, MultiStmtArg ClausesStmts, Stm
     
     //HC-TODO not sure we need to pass the context down as it's done
     //for if-stmt
-    return Owned(new (Context) HcFinishStmt(FinishLoc, llvm::makeArrayRef(Elts, NumElts), Body));
+    return Owned(new (Context) HcFinishStmt(ConstructLoc, llvm::makeArrayRef(Elts, NumElts), Body));
 }
 
 StmtResult Sema::ActOnHcClauseStmt(SourceLocation ClauseLoc,

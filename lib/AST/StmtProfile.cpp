@@ -1203,6 +1203,10 @@ void Stmt::Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Context,
 //HC
 // Begin Habanero-C StmtProfiler visitor implementation
 
+void StmtProfiler::VisitHcAsyncStmt(const HcAsyncStmt *S) {
+    VisitStmt(S);
+}
+
 void StmtProfiler::VisitHcFinishStmt(const HcFinishStmt *S) {
     VisitStmt(S);
 }

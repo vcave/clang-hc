@@ -2102,9 +2102,15 @@ enum CXCursorKind {
   /** \brief A Habanero-C clause statement.
    */
   CXCursor_HcClauseStmt                  = 700,
+
+  /** \brief A Habanero-C async statement.
+   */
+  CXCursor_HcAsyncStmt                   = 701,
+
   /** \brief A Habanero-C finish statement.
    */
-  CXCursor_HcFinishStmt                  = 701
+  CXCursor_HcFinishStmt                  = 702
+
 };
 
 /**

@@ -1283,6 +1283,7 @@ namespace clang {
       
       // HC
       STMT_HCFINISH,              // HcFinishStmt
+      STMT_HCASYNC,               // HcAsyncStmt
       STMT_HCCLAUSE,              // HcClauseStmt
 
       // Microsoft
