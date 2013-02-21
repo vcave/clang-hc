@@ -1883,23 +1883,97 @@ public:
 };
 
 ///HC Begin Habanero-C AST node implementation
+    enum HcClauseKind {
+        HC_CLAUSE_ACCUM,
+        HC_CLAUSE_IN,
+        HC_CLAUSE_OUT,
+        HC_CLAUSE_INOUT,
+        HC_CLAUSE_AWAIT,
+        HC_CLAUSE_PHASED
+    };
+    
+/// HcClauseStmt - This represents a clause statement in HC.
+/// It doesn't matter to which HC constructs it belongs.
+///
+    class HcClauseStmt : public Stmt {
+    public:
+
+    private:
+        enum { EXPR_LIST, END_EXPR };
+        Stmt* SubExprs[END_EXPR];
+        
+        SourceLocation HcClauseLoc;
+        enum HcClauseKind kind;
+        
+    public:
+        
+        HcClauseStmt(SourceLocation HcClauseLoc, HcClauseKind kind, Expr *ExprList);
+        
+        /// \brief Build an empty hc clause statement.
+        explicit HcClauseStmt(EmptyShell Empty) : Stmt(HcClauseStmtClass, Empty) { }
+        Expr *getExprList() { return reinterpret_cast<Expr*>(SubExprs[EXPR_LIST]); }
+        const Expr *getExprList() const { return reinterpret_cast<Expr*>(SubExprs[EXPR_LIST]); }
+        void setExprList(Expr *E) { SubExprs[EXPR_LIST] = reinterpret_cast<Stmt*>(E); }
+
+        HcClauseKind getKind() { return kind; }
+        void setKind(HcClauseKind K) { kind = K; }
+
+        SourceLocation getHcClauseLoc() const { return HcClauseLoc; }
+        void setHcClauseLoc(SourceLocation L) { HcClauseLoc = L; }
+        
+        SourceLocation getLocStart() const LLVM_READONLY { return HcClauseLoc; }
+        SourceLocation getLocEnd() const LLVM_READONLY {
+            return SubExprs[EXPR_LIST]->getLocEnd();
+        }
+        
+        std::string getKindAsString() {
+            switch (kind) {
+                case HC_CLAUSE_ACCUM:
+                    return "accum";
+                case HC_CLAUSE_IN:
+                    return "in";
+                case HC_CLAUSE_OUT:
+                    return "out";
+                case HC_CLAUSE_INOUT:
+                    return "inout";
+                case HC_CLAUSE_AWAIT:
+                    return "await";
+                case HC_CLAUSE_PHASED:
+                    return "phased";
+                default:
+                    assert(false && "Unknown HC Clause Kind");
+            }
+            return "none";
+        }
+        
+        // Iterators over subexpressions.
+        child_range children() {
+            return child_range(&SubExprs[0], &SubExprs[0]+END_EXPR);
+        }
+        
+        static bool classof(const Stmt *T) {
+            return T->getStmtClass() == HcClauseStmtClass;
+        }
+    };
+
 /// HcFinishStmt - This represents a finish statement in HC
 ///
 class HcFinishStmt : public Stmt {
     enum { BODY, END_EXPR };
     Stmt* SubExprs[END_EXPR];
-    
+    Stmt** ClausesStmts;
+    unsigned NumClausesStmts;
     SourceLocation HcFinishLoc;
     
 public:
-    HcFinishStmt(SourceLocation HcFinishLoc, Stmt *body);
+    HcFinishStmt(SourceLocation HcFinishLoc, ArrayRef<Stmt*> ClausesStmts, Stmt *body);
     
     /// \brief Build an empty hc finish statement.
-    explicit HcFinishStmt(EmptyShell Empty) : Stmt(HcFinishStmtClass, Empty) { }
+    explicit HcFinishStmt(EmptyShell Empty) : Stmt(HcFinishStmtClass, Empty), ClausesStmts(0), NumClausesStmts(0) { }
     Stmt *getBody() { return SubExprs[BODY]; }
     const Stmt *getBody() const { return SubExprs[BODY]; }
     void setBody(Stmt *S) { SubExprs[BODY] = S; }
-    
+
     SourceLocation getHcFinishLoc() const { return HcFinishLoc; }
     void setHcFinishLoc(SourceLocation L) { HcFinishLoc = L; }
 
@@ -1908,6 +1982,13 @@ public:
         return SubExprs[BODY]->getLocEnd();
     }
     
+    void setClausesStmts(ASTContext &C, Stmt **Stmts, unsigned NumStmts);
+    typedef Stmt** hc_clauses_iterator;
+    hc_clauses_iterator hc_clauses_begin() { return ClausesStmts; }
+    hc_clauses_iterator hc_clauses_end() { return ClausesStmts + NumClausesStmts; }
+    bool hc_clauses_empty() const { return NumClausesStmts == 0; }
+    bool hc_clauses_size() const { return NumClausesStmts; }
+
     // Iterators over subexpressions.
     child_range children() {
         return child_range(&SubExprs[0], &SubExprs[0]+END_EXPR);

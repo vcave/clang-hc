@@ -1528,7 +1528,7 @@ void ASTStmtWriter::VisitAsTypeExpr(AsTypeExpr *E) {
   Code = serialization::EXPR_ASTYPE;
 }
 
-//#HC
+//HC
 //===----------------------------------------------------------------------===//
 // HC Expressions and Statements.
 //===----------------------------------------------------------------------===//
@@ -1536,8 +1536,21 @@ void ASTStmtWriter::VisitAsTypeExpr(AsTypeExpr *E) {
 void ASTStmtWriter::VisitHcFinishStmt(HcFinishStmt *S) {
     VisitStmt(S);
     Writer.AddStmt(S->getBody());
+    Record.push_back(S->hc_clauses_size());
+    for (CompoundStmt::body_iterator CS = S->hc_clauses_begin(), CSEnd = S->hc_clauses_end();
+         CS != CSEnd; ++CS)
+        Writer.AddStmt(*CS);
     Writer.AddSourceLocation(S->getHcFinishLoc(), Record);
     Code = serialization::STMT_HCFINISH;
+}
+
+void ASTStmtWriter::VisitHcClauseStmt(HcClauseStmt *S) {
+    VisitStmt(S);
+    //HC-TODO Shall we Add statement here or expr ?
+    Writer.AddStmt(S->getExprList());
+    Writer.AddSourceLocation(S->getHcClauseLoc(), Record);
+    //HC-TODO how do we write kind ?
+    Code = serialization::STMT_HCCLAUSE;
 }
 
 //===----------------------------------------------------------------------===//

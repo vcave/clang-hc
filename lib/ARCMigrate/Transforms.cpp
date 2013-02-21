@@ -287,12 +287,21 @@ public:
     return true;
   }
 
-//#HC
+//HC
 // Begin Habanero-C visitor implementation
   bool VisitHcFinishStmt(HcFinishStmt *S) {
+    for (HcFinishStmt::hc_clauses_iterator
+         I = S->hc_clauses_begin(), E = S->hc_clauses_end(); I != E; ++I)
+        mark(*I);
     mark(S->getBody());
     return true;
   }
+  
+  bool VisitHcClauseStmt(HcClauseStmt *S) {
+    mark(S->getExprList());
+    return true;
+  }
+
 // End Habanero-C visitor implementation
     
 private:

@@ -290,11 +290,11 @@ Retry:
     ProhibitAttributes(Attrs);
     HandlePragmaOpenCLExtension();
     return StmtEmpty();
-///#HC begin statements
+///HC begin statements
   case tok::kw_finish:
     return ParseHcFinishStatement(TrailingElseLoc);
   }
-///#HC end statements
+///HC end statements
 
   // If we reached this code, the statement must end in a semicolon.
   if (Tok.is(tok::semi)) {
@@ -1156,7 +1156,7 @@ StmtResult Parser::ParseSwitchStatement(SourceLocation *TrailingElseLoc) {
   return Actions.ActOnFinishSwitchStmt(SwitchLoc, Switch.get(), Body.get());
 }
 
-///#HC Begin Habanero-C Statement Construct parsing 
+///HC Begin Habanero-C Statement Construct parsing 
 /// ParseHcFinishStatement
 ///       finish-statement:
 ///         'finish' statement
@@ -1164,6 +1164,10 @@ StmtResult Parser::ParseHcFinishStatement(SourceLocation *TrailingElseLoc) {
     assert(Tok.is(tok::kw_finish) && "Not a finish stmt!");
     SourceLocation FinishLoc = Tok.getLocation();
     ConsumeToken();  // eat the 'finish'.
+
+    // Process optional clauses
+    StmtVector ClausesDecls;
+    ParseHcFinishClauses(ClausesDecls);
 
     // A finish block defines a new scope
     ParseScope FinishScope(this, Scope::DeclScope);
@@ -1180,10 +1184,91 @@ StmtResult Parser::ParseHcFinishStatement(SourceLocation *TrailingElseLoc) {
         return StmtError();
 
     // Else, go ahead and build the Finish AST Node
-    return Actions.ActOnHcFinishStmt(FinishLoc, Body.get());
+    return Actions.ActOnHcFinishStmt(FinishLoc, ClausesDecls, Body.get());
 }
 
-///#HC Ending Habanero-C Statement Construct parsing 
+
+/// \brief Parse an HC clause arguments. A list of variables of the form: (a, b, c)
+ExprResult Parser::ParseHcClauseVarList() {
+    ExprResult Result(true);
+    
+    // Setup to parse the parenthesized expression.
+    // We're only interested in a list of compounds statements.
+    ParenParseOption ParenExprType = CompoundStmt;
+    //HC-TODO, not sure what's the side-effect of this boolean
+    bool stopIfCastExpr = true;
+    bool isTypeCast = false;
+    ParsedType CastTy;
+    SourceLocation RParenLoc;
+    
+    Result = ParseParenExpression(ParenExprType, stopIfCastExpr,
+                                 isTypeCast, CastTy, RParenLoc);
+    if (Result.isInvalid()) {
+        //HC-DEBUG
+        printf("Invalid ParenExpression parsing for HC Clause\n");
+    }
+    return Result;
+}
+
+/// \brief Parse HC clauses located after a finish
+void Parser::ParseHcFinishClauses(StmtVector &ClausesDecls) {
+
+    // Looking for one of the clause's keyword. Everytime one
+    // is found and parsed, we jump back to the Retry label to
+    // try and parse a new clause until we have eaten them all.
+Retry:
+    tok::TokenKind Kind  = Tok.getKind();
+    SourceLocation AtLoc = Tok.getLocation();
+    HcClauseKind currentKind;
+
+    // Wanted to keep a switch so that we get a warning in
+    // xcode if we haven't implemented a case for one of the
+    // kind, which leads to a rather nasty goto-based pattern
+    // to avoid code duplication in each case
+    switch (Kind) {
+        case tok::kw_accum:
+        {
+            currentKind = HC_CLAUSE_ACCUM;
+            goto Checkout;
+        }
+        case tok::kw_in:
+        {
+            currentKind = HC_CLAUSE_IN;
+            goto Checkout;
+        }
+        case tok::kw_out:
+        {
+            currentKind = HC_CLAUSE_OUT;
+            goto Checkout;
+        }
+        case tok::kw_inout:
+        {
+            currentKind = HC_CLAUSE_INOUT;
+            goto Checkout;
+        }
+        case tok::kw_await:
+        {
+            currentKind = HC_CLAUSE_AWAIT;
+            goto Checkout;
+        }
+        case tok::kw_phased:
+        {
+            currentKind = HC_CLAUSE_PHASED;
+            goto Checkout;
+        }
+        default:
+            // default case, no clause keyword found, return.
+            return;
+    }
+Checkout:
+    ConsumeToken();  // eat the keyword.
+    ExprResult ExprList = ParseHcClauseVarList();
+    StmtResult ClauseStmt = Actions.ActOnHcClauseStmt(AtLoc, currentKind, ExprList.get());
+    ClausesDecls.push_back(ClauseStmt.release());
+    goto Retry;
+}
+
+///HC Ending Habanero-C Statement Construct parsing
 
 /// ParseWhileStatement
 ///       while-statement: [C99 6.8.5.1]

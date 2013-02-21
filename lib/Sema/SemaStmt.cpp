@@ -1185,10 +1185,12 @@ Sema::ActOnDoStmt(SourceLocation DoLoc, Stmt *Body,
   return Owned(new (Context) DoStmt(Body, Cond, DoLoc, WhileLoc, CondRParen));
 }
 
-///#HC Begin ActOn for Habanero-C
+///HC Begin ActOn for Habanero-C
 
 StmtResult
-Sema::ActOnHcFinishStmt(SourceLocation FinishLoc, Stmt *Body) {
+Sema::ActOnHcFinishStmt(SourceLocation FinishLoc, MultiStmtArg ClausesStmts, Stmt *Body) {
+    unsigned NumElts = ClausesStmts.size();
+    Stmt **Elts = ClausesStmts.data();
 
     DiagnoseUnusedExprResult(Body);
     
@@ -1199,10 +1201,27 @@ Sema::ActOnHcFinishStmt(SourceLocation FinishLoc, Stmt *Body) {
     
     //HC-TODO not sure we need to pass the context down as it's done
     //for if-stmt
-    return Owned(new (Context) HcFinishStmt(FinishLoc, Body));
+    return Owned(new (Context) HcFinishStmt(FinishLoc, llvm::makeArrayRef(Elts, NumElts), Body));
 }
 
-///#HC End ActOn for Habanero-C
+StmtResult Sema::ActOnHcClauseStmt(SourceLocation ClauseLoc,
+                             HcClauseKind kind,
+                             Expr *ExprList) {
+    //HC-TODO
+    // Here we need to check that we're getting an expression list
+    // and that each sub-expression is a variable identifier.
+
+    // Note: This may change if we introduce more complex clauses.
+    //       If the check is simple one can simply use the kind
+    //       to specialize it.
+    //       Otherwise extend the HcClauseStmt AST node.
+    
+    //HC-TODO not sure we need to pass the context down as it's done
+    //for if-stmt
+    return Owned(new (Context) HcClauseStmt(ClauseLoc, kind, ExprList));
+}
+
+///HC End ActOn for Habanero-C
 
 namespace {
   // This visitor will traverse a conditional statement and store all

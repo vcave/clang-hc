@@ -3729,11 +3729,13 @@ CXString clang_getCursorKindSpelling(enum CXCursorKind Kind) {
     return cxstring::createRef("CXXAccessSpecifier");
   case CXCursor_ModuleImportDecl:
     return cxstring::createRef("ModuleImport");
-//#HC Begin Habanero-C cursor definitions
+//HC Begin Habanero-C cursor definitions
   case CXCursor_HcFinishStmt:
     return cxstring::createRef("HcFinishStmt");
+  case CXCursor_HcClauseStmt:
+    return cxstring::createRef("HcClauseStmt");
+//HC End Habanero-C cursor definitions
   }
-//#HC End Habanero-C cursor definitions 
   llvm_unreachable("Unhandled CXCursorKind");
 }
 

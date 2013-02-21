@@ -2523,17 +2523,25 @@ public:
                                             RParenLoc);
   }
     
-//#HC begin Habanero-C rebuild statements
+//HC begin Habanero-C rebuild statements
 
   /// \brief Build a new hc finish statement.
   ///
   /// By default, performs semantic analysis to build the new statement.
   /// Subclasses may override this routine to provide different behavior.
-  StmtResult RebuildHcFinishStmt(SourceLocation HcFinishLoc, Stmt *Body) {
-    return getSema().ActOnHcFinishStmt(HcFinishLoc, Body);
+  StmtResult RebuildHcFinishStmt(SourceLocation HcFinishLoc, MultiStmtArg ClausesStmts, Stmt *Body) {
+    return getSema().ActOnHcFinishStmt(HcFinishLoc, ClausesStmts, Body);
   }
 
-//#HC end Habanero-C rebuild statements
+  /// \brief Build a new hc clause statement.
+  ///
+  /// By default, performs semantic analysis to build the new statement.
+  /// Subclasses may override this routine to provide different behavior.
+    StmtResult RebuildHcClauseStmt(SourceLocation HcClauseLoc, HcClauseKind kind, Expr *ExprList) {
+    return getSema().ActOnHcClauseStmt(HcClauseLoc, kind, ExprList);
+  }
+
+//HC end Habanero-C rebuild statements
 
 private:
   TypeLoc TransformTypeInObjectScope(TypeLoc TL,
@@ -8946,24 +8954,54 @@ TreeTransform<Derived>::TransformAtomicExpr(AtomicExpr *E) {
 }
 
     
-//#HC begin Habanero-C Statement Transform implementation
+//HC begin Habanero-C Statement Transform implementation
 
-    template<typename Derived>
-    StmtResult
-    TreeTransform<Derived>::TransformHcFinishStmt(HcFinishStmt *S) {
-        // Transform the body
-        StmtResult Body = getDerived().TransformStmt(S->getBody());
-        if (Body.isInvalid())
-            return StmtError();
+template<typename Derived>
+StmtResult
+TreeTransform<Derived>::TransformHcFinishStmt(HcFinishStmt *S) {
+    // Transform clauses
+    bool SubStmtChanged = false;
+    SmallVector<Stmt*, 8> ClausesStmts;
+    for (HcFinishStmt::hc_clauses_iterator B = S->hc_clauses_begin(), BEnd = S->hc_clauses_end();
+         B != BEnd; ++B) {
+        StmtResult Result = getDerived().TransformStmt(*B);
+        if (Result.isInvalid()) {
+                return StmtError();
+        }
         
-        if (!getDerived().AlwaysRebuild() &&
-            Body.get() == S->getBody())
-            return Owned(S);
-        
-        return getDerived().RebuildHcFinishStmt(S->getHcFinishLoc(), Body.get());
+        SubStmtChanged = SubStmtChanged || Result.get() != *B;
+        ClausesStmts.push_back(Result.takeAs<Stmt>());
     }
 
-//#HC end Habanero-C Statement Transform implementation
+    // Transform the body
+    StmtResult Body = getDerived().TransformStmt(S->getBody());
+    if (Body.isInvalid())
+        return StmtError();
+    
+    if (!getDerived().AlwaysRebuild() &&
+        Body.get() == S->getBody() &&
+        !SubStmtChanged)
+        return Owned(S);
+    
+    return getDerived().RebuildHcFinishStmt(S->getHcFinishLoc(), ClausesStmts, Body.get());
+}
+
+template<typename Derived>
+StmtResult
+TreeTransform<Derived>::TransformHcClauseStmt(HcClauseStmt *S) {
+    // Transform the expression list
+    ExprResult ExprList = getDerived().TransformExpr(S->getExprList());
+    if (ExprList.isInvalid())
+        return StmtError();
+    
+    if (!getDerived().AlwaysRebuild() &&
+        ExprList.get() == S->getExprList())
+        return Owned(S);
+    
+    return getDerived().RebuildHcClauseStmt(S->getHcClauseLoc(), S->getKind(), ExprList.get());
+}
+
+//HC end Habanero-C Statement Transform implementation
 
 //===----------------------------------------------------------------------===//
 // Type reconstruction

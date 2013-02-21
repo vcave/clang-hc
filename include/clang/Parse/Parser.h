@@ -1541,9 +1541,11 @@ private:
 
   //===--------------------------------------------------------------------===//
   // Habanero-C Statements
-  //#HC
+  //HC
 
   StmtResult ParseHcFinishStatement(SourceLocation *TrailingElseLoc);
+  void ParseHcFinishClauses(StmtVector &ClausesDecls);
+  ExprResult ParseHcClauseVarList();
 
   //===--------------------------------------------------------------------===//
   // C99 6.7: Declarations.

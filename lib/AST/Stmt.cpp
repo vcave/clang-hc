@@ -1026,10 +1026,29 @@ SEHFinallyStmt* SEHFinallyStmt::Create(ASTContext &C,
 
 ///HC Begin Habanero-C Statement-based AST node implementation
 
-HcFinishStmt::HcFinishStmt(SourceLocation HcFinishLoc, Stmt *body)
+HcFinishStmt::HcFinishStmt(SourceLocation HcFinishLoc, ArrayRef<Stmt*> clausesStmts, Stmt *body)
     : Stmt(HcFinishStmtClass), HcFinishLoc(HcFinishLoc)
 {
     SubExprs[BODY] = body;
+    ClausesStmts = new Stmt*[clausesStmts.size()];
+    std::copy(clausesStmts.begin(), clausesStmts.end(), ClausesStmts);
 }
+
+
+void HcFinishStmt::setClausesStmts(ASTContext &C, Stmt **Stmts, unsigned NumStmts) {
+    if (ClausesStmts)
+        C.Deallocate(Stmts);
+    NumClausesStmts = NumStmts;
+    ClausesStmts = new (C) Stmt*[NumClausesStmts];
+    memcpy(ClausesStmts, Stmts, sizeof(Stmt *) * NumClausesStmts);
+
+}
+
+HcClauseStmt::HcClauseStmt(SourceLocation HcClauseLoc, HcClauseKind kind, Expr *ExprList)
+    : Stmt(HcClauseStmtClass), HcClauseLoc(HcClauseLoc), kind(kind)
+{
+    SubExprs[EXPR_LIST] = reinterpret_cast<Stmt*>(ExprList);
+}
+
 
 ///HC End Habanero-C Statement-based AST node implementation

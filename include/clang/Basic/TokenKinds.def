@@ -549,6 +549,12 @@ TESTING_KEYWORD(__unknown_anytype , KEYALL)
 // HC-TODO: See if we can add a KEYHC
 KEYWORD(async                        , KEYALL)
 KEYWORD(finish                       , KEYALL)
+KEYWORD(accum                        , KEYALL)
+KEYWORD(in                           , KEYALL)
+KEYWORD(out                          , KEYALL)
+KEYWORD(inout                        , KEYALL)
+KEYWORD(await                        , KEYALL)
+KEYWORD(phased                       , KEYALL)
 
 //===----------------------------------------------------------------------===//
 // Objective-C @-preceded keywords.

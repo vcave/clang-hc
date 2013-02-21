@@ -490,6 +490,10 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
     K = CXCursor_HcFinishStmt;
     break;
   }
+  case Stmt::HcClauseStmtClass:
+    K = CXCursor_HcClauseStmt;
+    break;
+  }
   //HC end Habanero-C cursors
 
   CXCursor C = { K, 0, { Parent, S, TU } };

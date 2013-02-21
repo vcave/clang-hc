@@ -30,6 +30,7 @@ def DefaultStmt : DStmt<SwitchCase>;
 
 //HC statements
 def HcFinishStmt  : Stmt;
+def HcClauseStmt  : Stmt;
 
 // Asm statements
 def AsmStmt : Stmt<1>;

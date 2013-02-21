@@ -1901,11 +1901,12 @@ DEF_TRAVERSE_STMT(ReturnStmt, { })
 DEF_TRAVERSE_STMT(SwitchStmt, { })
 DEF_TRAVERSE_STMT(WhileStmt, { })
 
-//#HC begin HC traverse Statement
+//HC begin HC traverse Statement
     
 DEF_TRAVERSE_STMT(HcFinishStmt, { })
+DEF_TRAVERSE_STMT(HcClauseStmt, { })
     
-//#HC end HC traverse Statement
+//HC end HC traverse Statement
 
 DEF_TRAVERSE_STMT(CXXDependentScopeMemberExpr, {
     TRY_TO(TraverseNestedNameSpecifierLoc(S->getQualifierLoc()));

@@ -1547,7 +1547,7 @@ void ASTStmtReader::VisitAsTypeExpr(AsTypeExpr *E) {
   E->SrcExpr = Reader.ReadSubExpr();
 }
 
-//#HC
+//HC
 //===----------------------------------------------------------------------===//
 // HC Expressions and Statements.
 //===----------------------------------------------------------------------===//
@@ -1555,8 +1555,21 @@ void ASTStmtReader::VisitAsTypeExpr(AsTypeExpr *E) {
 void ASTStmtReader::VisitHcFinishStmt(HcFinishStmt *S) {
     VisitStmt(S);
     S->setBody(Reader.ReadSubStmt());
+    SmallVector<Stmt *, 4> Stmts;
+    unsigned NumStmts = Record[Idx++];
+    while (NumStmts--)
+        Stmts.push_back(Reader.ReadSubStmt());
+    S->setClausesStmts(Reader.getContext(), Stmts.data(), Stmts.size());
     S->setHcFinishLoc(ReadSourceLocation(Record, Idx));
 }
+
+void ASTStmtReader::VisitHcClauseStmt(HcClauseStmt *S) {
+    VisitStmt(S);
+    S->setExprList(Reader.ReadSubExpr());
+    S->setHcClauseLoc(ReadSourceLocation(Record, Idx));
+    //HC-TODO how do we read kind ?
+}
+
 
 //===----------------------------------------------------------------------===//
 // ASTReader Implementation
@@ -1721,9 +1734,13 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
     case STMT_MSASM:
       S = new (Context) MSAsmStmt(Empty);
       break;
-//#HC
+//HC
     case STMT_HCFINISH:
       S = new (Context) HcFinishStmt(Empty);
+      break;
+
+    case STMT_HCCLAUSE:
+      S = new (Context) HcClauseStmt(Empty);
       break;
 
     case EXPR_PREDEFINED:

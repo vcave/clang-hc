@@ -2679,9 +2679,14 @@ public:
                                         SourceLocation RParenLoc);
   StmtResult FinishObjCForCollectionStmt(Stmt *ForCollection, Stmt *Body);
 
-  ///#HC
+  ///HC
   StmtResult ActOnHcFinishStmt(SourceLocation FinishLoc,
+                               MultiStmtArg ClausesStmts,
                                Stmt *Body);
+  
+  StmtResult ActOnHcClauseStmt(SourceLocation ClauseLoc,
+                               HcClauseKind kind,
+                               Expr *ExprList);
 
   enum BuildForRangeKind {
     /// Initial building of a for-range statement.
