@@ -353,7 +353,7 @@ ASTTypeWriter::VisitDependentTemplateSpecializationType(
 
 void ASTTypeWriter::VisitPackExpansionType(const PackExpansionType *T) {
   Writer.AddTypeRef(T->getPattern(), Record);
-  if (llvm::Optional<unsigned> NumExpansions = T->getNumExpansions())
+  if (Optional<unsigned> NumExpansions = T->getNumExpansions())
     Record.push_back(*NumExpansions + 1);
   else
     Record.push_back(0);
@@ -1057,6 +1057,16 @@ void ASTWriter::WriteControlBlock(Preprocessor &PP, ASTContext &Context,
   
   Record.push_back(LangOpts.CurrentModule.size());
   Record.append(LangOpts.CurrentModule.begin(), LangOpts.CurrentModule.end());
+
+  // Comment options.
+  Record.push_back(LangOpts.CommentOpts.BlockCommandNames.size());
+  for (CommentOptions::BlockCommandNamesTy::const_iterator
+           I = LangOpts.CommentOpts.BlockCommandNames.begin(),
+           IEnd = LangOpts.CommentOpts.BlockCommandNames.end();
+       I != IEnd; ++I) {
+    AddString(*I, Record);
+  }
+
   Stream.EmitRecord(LANGUAGE_OPTIONS, Record);
 
   // Target options.
@@ -3301,11 +3311,11 @@ void ASTWriter::AddString(StringRef Str, RecordDataImpl &Record) {
 void ASTWriter::AddVersionTuple(const VersionTuple &Version,
                                 RecordDataImpl &Record) {
   Record.push_back(Version.getMajor());
-  if (llvm::Optional<unsigned> Minor = Version.getMinor())
+  if (Optional<unsigned> Minor = Version.getMinor())
     Record.push_back(*Minor + 1);
   else
     Record.push_back(0);
-  if (llvm::Optional<unsigned> Subminor = Version.getSubminor())
+  if (Optional<unsigned> Subminor = Version.getSubminor())
     Record.push_back(*Subminor + 1);
   else
     Record.push_back(0);
@@ -4463,7 +4473,7 @@ void ASTWriter::AddTemplateArgument(const TemplateArgument &Arg,
     break;
   case TemplateArgument::TemplateExpansion:
     AddTemplateName(Arg.getAsTemplateOrTemplatePattern(), Record);
-    if (llvm::Optional<unsigned> NumExpansions = Arg.getNumTemplateExpansions())
+    if (Optional<unsigned> NumExpansions = Arg.getNumTemplateExpansions())
       Record.push_back(*NumExpansions + 1);
     else
       Record.push_back(0);

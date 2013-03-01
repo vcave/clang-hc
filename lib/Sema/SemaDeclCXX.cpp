@@ -6456,7 +6456,9 @@ Decl *Sema::ActOnUsingDirective(Scope *S,
     Diag(IdentLoc, diag::err_expected_namespace_name) << SS.getRange();
   }
 
-  // FIXME: We ignore attributes for now.
+  if (UDir)
+    ProcessDeclAttributeList(S, UDir, AttrList);
+
   return UDir;
 }
 
@@ -7172,6 +7174,7 @@ Decl *Sema::ActOnAliasDeclaration(Scope *S,
                                   MultiTemplateParamsArg TemplateParamLists,
                                   SourceLocation UsingLoc,
                                   UnqualifiedId &Name,
+                                  AttributeList *AttrList,
                                   TypeResult Type) {
   // Skip up to the relevant declaration scope.
   while (S->getFlags() & Scope::TemplateParamScope)
@@ -7217,6 +7220,8 @@ Decl *Sema::ActOnAliasDeclaration(Scope *S,
 
   if (Invalid)
     NewTD->setInvalidDecl();
+
+  ProcessDeclAttributeList(S, NewTD, AttrList);
 
   CheckTypedefForVariablyModifiedType(S, NewTD);
   Invalid |= NewTD->isInvalidDecl();
@@ -10078,6 +10083,19 @@ Decl *Sema::ActOnFinishLinkageSpecification(Scope *S,
     PopDeclContext();
   }
   return LinkageSpec;
+}
+
+Decl *Sema::ActOnEmptyDeclaration(Scope *S,
+                                  AttributeList *AttrList,
+                                  SourceLocation SemiLoc) {
+  Decl *ED = EmptyDecl::Create(Context, CurContext, SemiLoc);
+  // Attribute declarations appertain to empty declaration so we handle
+  // them here.
+  if (AttrList)
+    ProcessDeclAttributeList(S, ED, AttrList);
+
+  CurContext->addDecl(ED);
+  return ED;
 }
 
 /// \brief Perform semantic analysis for the variable declaration that

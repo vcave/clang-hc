@@ -108,6 +108,14 @@ static bool checkLanguageOptions(const LangOptions &LangOpts,
     return true;
   }
 
+  if (ExistingLangOpts.CommentOpts.BlockCommandNames !=
+      LangOpts.CommentOpts.BlockCommandNames) {
+    if (Diags)
+      Diags->Report(diag::err_pch_langopt_value_mismatch)
+        << "block command names";
+    return true;
+  }
+
   return false;
 }
 
@@ -530,7 +538,7 @@ IdentifierInfo *ASTIdentifierLookupTrait::ReadData(const internal_key_type& k,
 
   // Set or check the various bits in the IdentifierInfo structure.
   // Token IDs are read-only.
-  if (HasRevertedTokenIDToIdentifier)
+  if (HasRevertedTokenIDToIdentifier && II->getTokenID() != tok::identifier)
     II->RevertTokenIDToIdentifier();
   II->setObjCOrBuiltinID(ObjCOrBuiltinID);
   assert(II->isExtensionToken() == ExtensionToken &&
@@ -909,10 +917,13 @@ bool ASTReader::ReadSLocEntry(int ID) {
     // we will also try to fail gracefully by setting up the SLocEntry.
     unsigned InputID = Record[4];
     InputFile IF = getInputFile(*F, InputID);
-    const FileEntry *File = IF.getPointer();
-    bool OverriddenBuffer = IF.getInt();
+    const FileEntry *File = IF.getFile();
+    bool OverriddenBuffer = IF.isOverridden();
 
-    if (!IF.getPointer())
+    // Note that we only check if a File was returned. If it was out-of-date
+    // we have complained but we will continue creating a FileID to recover
+    // gracefully.
+    if (!File)
       return true;
 
     SourceLocation IncludeLoc = ReadSourceLocation(*F, Record[1]);
@@ -1241,8 +1252,12 @@ void ASTReader::ReadMacroRecord(ModuleFile &F, uint64_t Offset,
         PreprocessedEntityID
             GlobalID = getGlobalPreprocessedEntityID(F, Record[NextIndex]);
         PreprocessingRecord &PPRec = *PP.getPreprocessingRecord();
-        PPRec.RegisterMacroDefinition(Macro,
-                            PPRec.getPPEntityID(GlobalID-1, /*isLoaded=*/true));
+        PreprocessingRecord::PPEntityID
+          PPID = PPRec.getPPEntityID(GlobalID-1, /*isLoaded=*/true);
+        MacroDefinition *PPDef =
+          cast_or_null<MacroDefinition>(PPRec.getPreprocessedEntity(PPID));
+        if (PPDef)
+          PPRec.RegisterMacroDefinition(Macro, PPDef);
       }
 
       ++NumMacrosRead;
@@ -1483,14 +1498,13 @@ void ASTReader::markIdentifierUpToDate(IdentifierInfo *II) {
     IdentifierGeneration[II] = CurrentGeneration;
 }
 
-llvm::PointerIntPair<const FileEntry *, 1, bool> 
-ASTReader::getInputFile(ModuleFile &F, unsigned ID, bool Complain) {
+InputFile ASTReader::getInputFile(ModuleFile &F, unsigned ID, bool Complain) {
   // If this ID is bogus, just return an empty input file.
   if (ID == 0 || ID > F.InputFilesLoaded.size())
     return InputFile();
 
   // If we've already loaded this input file, return it.
-  if (F.InputFilesLoaded[ID-1].getPointer())
+  if (F.InputFilesLoaded[ID-1].getFile())
     return F.InputFilesLoaded[ID-1];
 
   // Go find this input file.
@@ -1544,17 +1558,15 @@ ASTReader::getInputFile(ModuleFile &F, unsigned ID, bool Complain) {
       }
       return InputFile();
     }
-    
-    // Note that we've loaded this input file.
-    F.InputFilesLoaded[ID-1] = InputFile(File, Overridden);
-    
+
     // Check if there was a request to override the contents of the file
     // that was part of the precompiled header. Overridding such a file
     // can lead to problems when lexing using the source locations from the
     // PCH.
     SourceManager &SM = getSourceManager();
     if (!Overridden && SM.isFileOverridden(File)) {
-      Error(diag::err_fe_pch_file_overridden, Filename);
+      if (Complain)
+        Error(diag::err_fe_pch_file_overridden, Filename);
       // After emitting the diagnostic, recover by disabling the override so
       // that the original file will be used.
       SM.disableFileContentsOverride(File);
@@ -1565,11 +1577,10 @@ ASTReader::getInputFile(ModuleFile &F, unsigned ID, bool Complain) {
                               StoredSize, StoredTime);
     }
 
-    // For an overridden file, there is nothing to validate.
-    if (Overridden)
-      return InputFile(File, Overridden);
+    bool IsOutOfDate = false;
 
-    if ((StoredSize != File->getSize()
+    // For an overridden file, there is nothing to validate.
+    if (!Overridden && (StoredSize != File->getSize()
 #if !defined(LLVM_ON_WIN32)
          // In our regression testing, the Windows file system seems to
          // have inconsistent modification times that sometimes
@@ -1579,11 +1590,14 @@ ASTReader::getInputFile(ModuleFile &F, unsigned ID, bool Complain) {
          )) {
       if (Complain)
         Error(diag::err_fe_pch_file_modified, Filename);
-      
-      return InputFile();
+      IsOutOfDate = true;
     }
 
-    return InputFile(File, Overridden);
+    InputFile IF = InputFile(File, Overridden, IsOutOfDate);
+
+    // Note that we've loaded this input file.
+    F.InputFilesLoaded[ID-1] = IF;
+    return IF;
   }
   }
 
@@ -1656,9 +1670,11 @@ ASTReader::ReadControlBlock(ModuleFile &F,
       // Validate all of the input files.
       if (!DisableValidation) {
         bool Complain = (ClientLoadCapabilities & ARR_OutOfDate) == 0;
-        for (unsigned I = 0, N = Record[0]; I < N; ++I)
-          if (!getInputFile(F, I+1, Complain).getPointer())
+        for (unsigned I = 0, N = Record[0]; I < N; ++I) {
+          InputFile IF = getInputFile(F, I+1, Complain);
+          if (!IF.getFile() || IF.isOutOfDate())
             return OutOfDate;
+        }
       }
       return Success;
       
@@ -3671,6 +3687,15 @@ bool ASTReader::ParseLanguageOptions(const RecordData &Record,
   unsigned Length = Record[Idx++];
   LangOpts.CurrentModule.assign(Record.begin() + Idx, 
                                 Record.begin() + Idx + Length);
+
+  Idx += Length;
+
+  // Comment options.
+  for (unsigned N = Record[Idx++]; N; --N) {
+    LangOpts.CommentOpts.BlockCommandNames.push_back(
+      ReadString(Record, Idx));
+  }
+
   return Listener.ReadLanguageOptions(LangOpts, Complain);
 }
 
@@ -4045,7 +4070,7 @@ std::pair<unsigned, unsigned>
 
 /// \brief Optionally returns true or false if the preallocated preprocessed
 /// entity with index \arg Index came from file \arg FID.
-llvm::Optional<bool> ASTReader::isPreprocessedEntityInFileID(unsigned Index,
+Optional<bool> ASTReader::isPreprocessedEntityInFileID(unsigned Index,
                                                              FileID FID) {
   if (FID.isInvalid())
     return false;
@@ -4071,7 +4096,7 @@ namespace {
     ASTReader &Reader;
     const FileEntry *FE;
     
-    llvm::Optional<HeaderFileInfo> HFI;
+    Optional<HeaderFileInfo> HFI;
     
   public:
     HeaderFileInfoVisitor(ASTReader &Reader, const FileEntry *FE)
@@ -4101,14 +4126,14 @@ namespace {
       return true;
     }
     
-    llvm::Optional<HeaderFileInfo> getHeaderFileInfo() const { return HFI; }
+    Optional<HeaderFileInfo> getHeaderFileInfo() const { return HFI; }
   };
 }
 
 HeaderFileInfo ASTReader::GetHeaderFileInfo(const FileEntry *FE) {
   HeaderFileInfoVisitor Visitor(*this, FE);
   ModuleMgr.visit(&HeaderFileInfoVisitor::visit, &Visitor);
-  if (llvm::Optional<HeaderFileInfo> HFI = Visitor.getHeaderFileInfo()) {
+  if (Optional<HeaderFileInfo> HFI = Visitor.getHeaderFileInfo()) {
     if (Listener)
       Listener->ReadHeaderFileInfo(*HFI, FE->getUID());
     return *HFI;
@@ -4468,7 +4493,7 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
     QualType Pattern = readType(*Loc.F, Record, Idx);
     if (Pattern.isNull())
       return QualType();
-    llvm::Optional<unsigned> NumExpansions;
+    Optional<unsigned> NumExpansions;
     if (Record[1])
       NumExpansions = Record[1] - 1;
     return Context.getPackExpansionType(Pattern, NumExpansions);
@@ -6542,7 +6567,7 @@ ASTReader::ReadTemplateArgument(ModuleFile &F,
     return TemplateArgument(ReadTemplateName(F, Record, Idx));
   case TemplateArgument::TemplateExpansion: {
     TemplateName Name = ReadTemplateName(F, Record, Idx);
-    llvm::Optional<unsigned> NumTemplateExpansions;
+    Optional<unsigned> NumTemplateExpansions;
     if (unsigned NumExpansions = Record[Idx++])
       NumTemplateExpansions = NumExpansions - 1;
     return TemplateArgument(Name, NumTemplateExpansions);

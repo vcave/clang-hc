@@ -451,24 +451,21 @@ Decl *Parser::ParseUsingDeclaration(unsigned Context,
                                     Decl **OwnedType) {
   CXXScopeSpec SS;
   SourceLocation TypenameLoc;
-  bool IsTypeName;
-  ParsedAttributesWithRange attrs(AttrFactory);
+  bool IsTypeName = false;
+  ParsedAttributesWithRange Attrs(AttrFactory);
 
   // FIXME: Simply skip the attributes and diagnose, don't bother parsing them.
-  MaybeParseCXX11Attributes(attrs);
-  ProhibitAttributes(attrs);
-  attrs.clear();
-  attrs.Range = SourceRange();
+  MaybeParseCXX11Attributes(Attrs);
+  ProhibitAttributes(Attrs);
+  Attrs.clear();
+  Attrs.Range = SourceRange();
 
   // Ignore optional 'typename'.
   // FIXME: This is wrong; we should parse this as a typename-specifier.
   if (Tok.is(tok::kw_typename)) {
-    TypenameLoc = Tok.getLocation();
-    ConsumeToken();
+    TypenameLoc = ConsumeToken();
     IsTypeName = true;
   }
-  else
-    IsTypeName = false;
 
   // Parse nested-name-specifier.
   ParseOptionalCXXScopeSpecifier(SS, ParsedType(), /*EnteringContext=*/false);
@@ -495,14 +492,13 @@ Decl *Parser::ParseUsingDeclaration(unsigned Context,
     return 0;
   }
 
-  MaybeParseCXX11Attributes(attrs);
+  MaybeParseCXX11Attributes(Attrs);
 
   // Maybe this is an alias-declaration.
   bool IsAliasDecl = Tok.is(tok::equal);
   TypeResult TypeAlias;
   if (IsAliasDecl) {
-    // TODO: Attribute support. C++0x attributes may appear before the equals.
-    // Where can GNU attributes appear?
+    // TODO: Can GNU attributes appear here?
     ConsumeToken();
 
     Diag(Tok.getLocation(), getLangOpts().CPlusPlus11 ?
@@ -547,20 +543,21 @@ Decl *Parser::ParseUsingDeclaration(unsigned Context,
 
     TypeAlias = ParseTypeName(0, TemplateInfo.Kind ?
                               Declarator::AliasTemplateContext :
-                              Declarator::AliasDeclContext, AS, OwnedType);
+                              Declarator::AliasDeclContext, AS, OwnedType,
+                              &Attrs);
   } else {
     // C++11 attributes are not allowed on a using-declaration, but GNU ones
     // are.
-    ProhibitAttributes(attrs);
+    ProhibitAttributes(Attrs);
 
     // Parse (optional) attributes (most likely GNU strong-using extension).
-    MaybeParseGNUAttributes(attrs);
+    MaybeParseGNUAttributes(Attrs);
   }
 
   // Eat ';'.
   DeclEnd = Tok.getLocation();
   ExpectAndConsume(tok::semi, diag::err_expected_semi_after,
-                   !attrs.empty() ? "attributes list" :
+                   !Attrs.empty() ? "attributes list" :
                    IsAliasDecl ? "alias declaration" : "using declaration",
                    tok::semi);
 
@@ -592,13 +589,13 @@ Decl *Parser::ParseUsingDeclaration(unsigned Context,
     MultiTemplateParamsArg TemplateParamsArg(
       TemplateParams ? TemplateParams->data() : 0,
       TemplateParams ? TemplateParams->size() : 0);
-    // FIXME: Propagate attributes.
     return Actions.ActOnAliasDeclaration(getCurScope(), AS, TemplateParamsArg,
-                                         UsingLoc, Name, TypeAlias);
+                                         UsingLoc, Name, Attrs.getList(),
+                                         TypeAlias);
   }
 
   return Actions.ActOnUsingDeclaration(getCurScope(), AS, true, UsingLoc, SS,
-                                       Name, attrs.getList(),
+                                       Name, Attrs.getList(),
                                        IsTypeName, TypenameLoc);
 }
 
@@ -1296,9 +1293,8 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
       // Okay, this is a class definition.
       TUK = Sema::TUK_Definition;
     }
-  } else if (isCXX11FinalKeyword() && (NextToken().is(tok::l_square) || 
-                                       NextToken().is(tok::kw_alignas) ||
-                                       NextToken().is(tok::kw__Alignas))) {
+  } else if (isCXX11FinalKeyword() && (NextToken().is(tok::l_square) ||
+                                       NextToken().is(tok::kw_alignas))) {
     // We can't tell if this is a definition or reference
     // until we skipped the 'final' and C++11 attribute specifiers.
     TentativeParsingAction PA(*this);
@@ -1312,8 +1308,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
         ConsumeBracket();
         if (!SkipUntil(tok::r_square))
           break;
-      } else if ((Tok.is(tok::kw_alignas) || Tok.is(tok::kw__Alignas)) &&
-                 NextToken().is(tok::l_paren)) {
+      } else if (Tok.is(tok::kw_alignas) && NextToken().is(tok::l_paren)) {
         ConsumeToken();
         ConsumeParen();
         if (!SkipUntil(tok::r_paren))
@@ -1506,11 +1501,6 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
                                     TemplateParams? &(*TemplateParams)[0] : 0,
                                  TemplateParams? TemplateParams->size() : 0));
   } else {
-    if (TemplateInfo.Kind == ParsedTemplateInfo::ExplicitInstantiation &&
-        TUK == Sema::TUK_Definition) {
-      // FIXME: Diagnose this particular error.
-    }
-
     if (TUK != Sema::TUK_Declaration && TUK != Sema::TUK_Definition)
       ProhibitAttributes(attrs);
 
@@ -3196,6 +3186,8 @@ void Parser::ParseCXX11AttributeSpecifier(ParsedAttributes &attrs,
 ///       attribute-specifier-seq[opt] attribute-specifier
 void Parser::ParseCXX11Attributes(ParsedAttributesWithRange &attrs,
                                   SourceLocation *endLoc) {
+  assert(getLangOpts().CPlusPlus11);
+
   SourceLocation StartLoc = Tok.getLocation(), Loc;
   if (!endLoc)
     endLoc = &Loc;

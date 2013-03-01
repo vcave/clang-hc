@@ -156,7 +156,7 @@ ProgramStateRef CallEvent::invalidateRegions(unsigned BlockCount,
 
     // If we are passing a location wrapped as an integer, unwrap it and
     // invalidate the values referred by the location.
-    if (llvm::Optional<nonloc::LocAsInteger> Wrapped =
+    if (Optional<nonloc::LocAsInteger> Wrapped =
             V.getAs<nonloc::LocAsInteger>())
       V = Wrapped->getLoc();
     else if (!V.getAs<Loc>())
@@ -854,12 +854,11 @@ RuntimeDefinition ObjCMethodCall::getRuntimeDefinition() const {
         typedef std::pair<const ObjCInterfaceDecl*, Selector>
                 PrivateMethodKey;
         typedef llvm::DenseMap<PrivateMethodKey,
-                               llvm::Optional<const ObjCMethodDecl *> >
+                               Optional<const ObjCMethodDecl *> >
                 PrivateMethodCache;
 
         static PrivateMethodCache PMC;
-        llvm::Optional<const ObjCMethodDecl *> &Val =
-          PMC[std::make_pair(IDecl, Sel)];
+        Optional<const ObjCMethodDecl *> &Val = PMC[std::make_pair(IDecl, Sel)];
 
         // Query lookupPrivateMethod() if the cache does not hit.
         if (!Val.hasValue())
@@ -962,8 +961,9 @@ CallEventManager::getCaller(const StackFrameContext *CalleeCtx,
   // destructors, though this could change in the future.
   const CFGBlock *B = CalleeCtx->getCallSiteBlock();
   CFGElement E = (*B)[CalleeCtx->getIndex()];
-  assert(isa<CFGImplicitDtor>(E) && "All other CFG elements should have exprs");
-  assert(!isa<CFGTemporaryDtor>(E) && "We don't handle temporaries yet");
+  assert(E.getAs<CFGImplicitDtor>() &&
+         "All other CFG elements should have exprs");
+  assert(!E.getAs<CFGTemporaryDtor>() && "We don't handle temporaries yet");
 
   SValBuilder &SVB = State->getStateManager().getSValBuilder();
   const CXXDestructorDecl *Dtor = cast<CXXDestructorDecl>(CalleeCtx->getDecl());
@@ -971,11 +971,12 @@ CallEventManager::getCaller(const StackFrameContext *CalleeCtx,
   SVal ThisVal = State->getSVal(ThisPtr);
 
   const Stmt *Trigger;
-  if (const CFGAutomaticObjDtor *AutoDtor = dyn_cast<CFGAutomaticObjDtor>(&E))
+  if (Optional<CFGAutomaticObjDtor> AutoDtor = E.getAs<CFGAutomaticObjDtor>())
     Trigger = AutoDtor->getTriggerStmt();
   else
     Trigger = Dtor->getBody();
 
   return getCXXDestructorCall(Dtor, Trigger, ThisVal.getAsRegion(),
-                              isa<CFGBaseDtor>(E), State, CallerCtx);
+                              E.getAs<CFGBaseDtor>().hasValue(), State,
+                              CallerCtx);
 }

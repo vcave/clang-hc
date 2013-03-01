@@ -571,7 +571,7 @@ ProgramStateRef MallocChecker::MallocMemAux(CheckerContext &C,
       dyn_cast_or_null<SymbolicRegion>(RetVal.getAsRegion());
   if (!R)
     return 0;
-  if (llvm::Optional<DefinedOrUnknownSVal> DefinedSize =
+  if (Optional<DefinedOrUnknownSVal> DefinedSize =
           Size.getAs<DefinedOrUnknownSVal>()) {
     SValBuilder &svalBuilder = C.getSValBuilder();
     DefinedOrUnknownSVal Extent = R->getExtent(svalBuilder);
@@ -782,13 +782,11 @@ ProgramStateRef MallocChecker::FreeMemAux(CheckerContext &C,
 }
 
 bool MallocChecker::SummarizeValue(raw_ostream &os, SVal V) {
-  if (llvm::Optional<nonloc::ConcreteInt> IntVal =
-          V.getAs<nonloc::ConcreteInt>())
+  if (Optional<nonloc::ConcreteInt> IntVal = V.getAs<nonloc::ConcreteInt>())
     os << "an integer (" << IntVal->getValue() << ")";
-  else if (llvm::Optional<loc::ConcreteInt> ConstAddr =
-               V.getAs<loc::ConcreteInt>())
+  else if (Optional<loc::ConcreteInt> ConstAddr = V.getAs<loc::ConcreteInt>())
     os << "a constant address (" << ConstAddr->getValue() << ")";
-  else if (llvm::Optional<loc::GotoLabel> Label = V.getAs<loc::GotoLabel>())
+  else if (Optional<loc::GotoLabel> Label = V.getAs<loc::GotoLabel>())
     os << "the address of the label '" << Label->getLabel()->getName() << "'";
   else
     return false;
@@ -1119,9 +1117,9 @@ void MallocChecker::reportLeak(SymbolRef Sym, ExplodedNode *N,
   
   ProgramPoint P = AllocNode->getLocation();
   const Stmt *AllocationStmt = 0;
-  if (CallExitEnd *Exit = dyn_cast<CallExitEnd>(&P))
+  if (Optional<CallExitEnd> Exit = P.getAs<CallExitEnd>())
     AllocationStmt = Exit->getCalleeContext()->getCallSite();
-  else if (StmtPoint *SP = dyn_cast<StmtPoint>(&P))
+  else if (Optional<StmtPoint> SP = P.getAs<StmtPoint>())
     AllocationStmt = SP->getStmt();
   if (AllocationStmt)
     LocUsedForUniqueing = PathDiagnosticLocation::createBegin(AllocationStmt,
@@ -1561,11 +1559,11 @@ MallocChecker::MallocBugVisitor::VisitNode(const ExplodedNode *N,
 
   // Retrieve the associated statement.
   ProgramPoint ProgLoc = N->getLocation();
-  if (StmtPoint *SP = dyn_cast<StmtPoint>(&ProgLoc)) {
+  if (Optional<StmtPoint> SP = ProgLoc.getAs<StmtPoint>()) {
     S = SP->getStmt();
-  } else if (CallExitEnd *Exit = dyn_cast<CallExitEnd>(&ProgLoc)) {
+  } else if (Optional<CallExitEnd> Exit = ProgLoc.getAs<CallExitEnd>()) {
     S = Exit->getCalleeContext()->getCallSite();
-  } else if (BlockEdge *Edge = dyn_cast<BlockEdge>(&ProgLoc)) {
+  } else if (Optional<BlockEdge> Edge = ProgLoc.getAs<BlockEdge>()) {
     // If an assumption was made on a branch, it should be caught
     // here by looking at the state transition.
     S = Edge->getSrc()->getTerminator();

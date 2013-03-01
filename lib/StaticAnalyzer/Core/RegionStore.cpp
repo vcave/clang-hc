@@ -30,7 +30,6 @@
 
 using namespace clang;
 using namespace ento;
-using llvm::Optional;
 
 //===----------------------------------------------------------------------===//
 // Representation of binding keys.
@@ -125,6 +124,11 @@ namespace llvm {
        << ')';
     return os;
   }
+
+  template <typename T> struct isPodLike;
+  template <> struct isPodLike<BindingKey> {
+    static const bool value = true;
+  };
 } // end llvm namespace
 
 void BindingKey::dump() const {
@@ -137,6 +141,7 @@ void BindingKey::dump() const {
 
 typedef llvm::ImmutableMap<BindingKey, SVal>    ClusterBindings;
 typedef llvm::ImmutableMapRef<BindingKey, SVal> ClusterBindingsRef;
+typedef std::pair<BindingKey, SVal> BindingPair;
 
 typedef llvm::ImmutableMap<const MemRegion *, ClusterBindings>
         RegionBindings;
@@ -226,9 +231,7 @@ public:
 typedef const RegionBindingsRef& RegionBindingsConstRef;
 
 Optional<SVal> RegionBindingsRef::getDirectBinding(const MemRegion *R) const {
-  if (const SVal *V = lookup(R, BindingKey::Direct))
-    return *V;
-  return Optional<SVal>();
+  return Optional<SVal>::create(lookup(R, BindingKey::Direct));
 }
 
 Optional<SVal> RegionBindingsRef::getDefaultBinding(const MemRegion *R) const {
@@ -236,9 +239,8 @@ Optional<SVal> RegionBindingsRef::getDefaultBinding(const MemRegion *R) const {
     if (const TypedValueRegion *TR = dyn_cast<TypedValueRegion>(R))
       if (TR->getValueType()->isUnionType())
         return UnknownVal();
-  if (const SVal *V = lookup(R, BindingKey::Default))
-    return *V;
-  return Optional<SVal>();
+
+  return Optional<SVal>::create(lookup(R, BindingKey::Default));
 }
 
 RegionBindingsRef RegionBindingsRef::addBinding(BindingKey K, SVal V) const {
@@ -478,7 +480,7 @@ public: // Part of public interface to class.
                                          QualType Ty,
                                          const MemRegion *superR);
   
-  SVal getLazyBinding(const MemRegion *LazyBindingRegion,
+  SVal getLazyBinding(const SubRegion *LazyBindingRegion,
                       RegionBindingsRef LazyBinding);
 
   /// Get bindings for the values in a struct and return a CompoundVal, used
@@ -491,7 +493,10 @@ public: // Part of public interface to class.
   NonLoc createLazyBinding(RegionBindingsConstRef B, const TypedValueRegion *R);
 
   /// Used to lazily generate derived symbols for bindings that are defined
-  ///  implicitly by default bindings in a super region.
+  /// implicitly by default bindings in a super region.
+  ///
+  /// Note that callers may need to specially handle LazyCompoundVals, which
+  /// are returned as is in case the caller needs to treat them differently.
   Optional<SVal> getBindingForDerivedDefaultValue(RegionBindingsConstRef B,
                                                   const MemRegion *superR,
                                                   const TypedValueRegion *R,
@@ -501,9 +506,9 @@ public: // Part of public interface to class.
   ///
   /// If there is no lazy binding for \p R, the returned value will have a null
   /// \c second. Note that a null pointer can represents a valid Store.
-  std::pair<Store, const MemRegion *>
-  getLazyBinding(RegionBindingsConstRef B, const MemRegion *R,
-                 const MemRegion *originalRegion);
+  std::pair<Store, const SubRegion *>
+  findLazyBinding(RegionBindingsConstRef B, const SubRegion *R,
+                  const SubRegion *originalRegion);
 
   /// Returns the cached set of interesting SVals contained within a lazy
   /// binding.
@@ -731,16 +736,20 @@ static bool isCompatibleWithFields(BindingKey K, const FieldVector &Fields) {
                       Fields.begin() - Delta);
 }
 
-/// Collects all keys in \p Cluster that may refer to bindings within \p Top.
+/// Collects all bindings in \p Cluster that may refer to bindings within
+/// \p Top.
+///
+/// Each binding is a pair whose \c first is the key (a BindingKey) and whose
+/// \c second is the value (an SVal).
 ///
 /// The \p IncludeAllDefaultBindings parameter specifies whether to include
 /// default bindings that may extend beyond \p Top itself, e.g. if \p Top is
 /// an aggregate within a larger aggregate with a default binding.
-static void collectSubRegionKeys(SmallVectorImpl<BindingKey> &Keys,
-                                 SValBuilder &SVB,
-                                 const ClusterBindings &Cluster,
-                                 const SubRegion *Top, BindingKey TopKey,
-                                 bool IncludeAllDefaultBindings) {
+static void
+collectSubRegionBindings(SmallVectorImpl<BindingPair> &Bindings,
+                         SValBuilder &SVB, const ClusterBindings &Cluster,
+                         const SubRegion *Top, BindingKey TopKey,
+                         bool IncludeAllDefaultBindings) {
   FieldVector FieldsInSymbolicSubregions;
   if (TopKey.hasSymbolicOffset()) {
     getSymbolicOffsetFields(TopKey, FieldsInSymbolicSubregions);
@@ -753,7 +762,7 @@ static void collectSubRegionKeys(SmallVectorImpl<BindingKey> &Keys,
   // be using this function anyway.
   uint64_t Length = UINT64_MAX;
   SVal Extent = Top->getExtent(SVB);
-  if (llvm::Optional<nonloc::ConcreteInt> ExtentCI =
+  if (Optional<nonloc::ConcreteInt> ExtentCI =
           Extent.getAs<nonloc::ConcreteInt>()) {
     const llvm::APSInt &ExtentInt = ExtentCI->getValue();
     assert(ExtentInt.isNonNegative() || ExtentInt.isUnsigned());
@@ -773,8 +782,8 @@ static void collectSubRegionKeys(SmallVectorImpl<BindingKey> &Keys,
       if (NextKey.getOffset() > TopKey.getOffset() &&
           NextKey.getOffset() - TopKey.getOffset() < Length) {
         // Case 1: The next binding is inside the region we're invalidating.
-        // Remove it.
-        Keys.push_back(NextKey);
+        // Include it.
+        Bindings.push_back(*I);
 
       } else if (NextKey.getOffset() == TopKey.getOffset()) {
         // Case 2: The next binding is at the same offset as the region we're
@@ -784,7 +793,7 @@ static void collectSubRegionKeys(SmallVectorImpl<BindingKey> &Keys,
         // FIXME: This is probably incorrect; consider invalidating an outer
         // struct whose first field is bound to a LazyCompoundVal.
         if (IncludeAllDefaultBindings || NextKey.isDirect())
-          Keys.push_back(NextKey);
+          Bindings.push_back(*I);
       }
 
     } else if (NextKey.hasSymbolicOffset()) {
@@ -792,29 +801,28 @@ static void collectSubRegionKeys(SmallVectorImpl<BindingKey> &Keys,
       if (Top->isSubRegionOf(Base)) {
         // Case 3: The next key is symbolic and we just changed something within
         // its concrete region. We don't know if the binding is still valid, so
-        // we'll be conservative and remove it.
+        // we'll be conservative and include it.
         if (IncludeAllDefaultBindings || NextKey.isDirect())
           if (isCompatibleWithFields(NextKey, FieldsInSymbolicSubregions))
-            Keys.push_back(NextKey);
+            Bindings.push_back(*I);
       } else if (const SubRegion *BaseSR = dyn_cast<SubRegion>(Base)) {
         // Case 4: The next key is symbolic, but we changed a known
-        // super-region. In this case the binding is certainly no longer valid.
+        // super-region. In this case the binding is certainly included.
         if (Top == Base || BaseSR->isSubRegionOf(Top))
           if (isCompatibleWithFields(NextKey, FieldsInSymbolicSubregions))
-            Keys.push_back(NextKey);
+            Bindings.push_back(*I);
       }
     }
   }
 }
 
-static void collectSubRegionKeys(SmallVectorImpl<BindingKey> &Keys,
-                                 SValBuilder &SVB,
-                                 const ClusterBindings &Cluster,
-                                 const SubRegion *Top,
-                                 bool IncludeAllDefaultBindings) {
-  collectSubRegionKeys(Keys, SVB, Cluster, Top,
-                       BindingKey::Make(Top, BindingKey::Default),
-                       IncludeAllDefaultBindings);
+static void
+collectSubRegionBindings(SmallVectorImpl<BindingPair> &Bindings,
+                         SValBuilder &SVB, const ClusterBindings &Cluster,
+                         const SubRegion *Top, bool IncludeAllDefaultBindings) {
+  collectSubRegionBindings(Bindings, SVB, Cluster, Top,
+                           BindingKey::Make(Top, BindingKey::Default),
+                           IncludeAllDefaultBindings);
 }
 
 RegionBindingsRef
@@ -831,15 +839,15 @@ RegionStoreManager::removeSubRegionBindings(RegionBindingsConstRef B,
   if (!Cluster)
     return B;
 
-  SmallVector<BindingKey, 32> Keys;
-  collectSubRegionKeys(Keys, svalBuilder, *Cluster, Top, TopKey,
-                       /*IncludeAllDefaultBindings=*/false);
+  SmallVector<BindingPair, 32> Bindings;
+  collectSubRegionBindings(Bindings, svalBuilder, *Cluster, Top, TopKey,
+                           /*IncludeAllDefaultBindings=*/false);
 
   ClusterBindingsRef Result(*Cluster, CBFactory);
-  for (SmallVectorImpl<BindingKey>::const_iterator I = Keys.begin(),
-                                                   E = Keys.end();
+  for (SmallVectorImpl<BindingPair>::const_iterator I = Bindings.begin(),
+                                                    E = Bindings.end();
        I != E; ++I)
-    Result = Result.remove(*I);
+    Result = Result.remove(I->first);
 
   // If we're invalidating a region with a symbolic offset, we need to make sure
   // we don't treat the base region as uninitialized anymore.
@@ -894,7 +902,7 @@ void invalidateRegionsWorker::VisitBinding(SVal V) {
   }
 
   // Is it a LazyCompoundVal?  All references get invalidated as well.
-  if (llvm::Optional<nonloc::LazyCompoundVal> LCS =
+  if (Optional<nonloc::LazyCompoundVal> LCS =
           V.getAs<nonloc::LazyCompoundVal>()) {
 
     const RegionStoreManager::SValListTy &Vals = RM.getInterestingValues(*LCS);
@@ -939,7 +947,7 @@ void invalidateRegionsWorker::VisitBaseRegion(const MemRegion *baseR) {
         // a pointer value, but the thing pointed by that pointer may
         // get invalidated.
         SVal V = RM.getBinding(B, loc::MemRegionVal(VR));
-        if (llvm::Optional<Loc> L = V.getAs<Loc>()) {
+        if (Optional<Loc> L = V.getAs<Loc>()) {
           if (const MemRegion *LR = L->getAsRegion())
             AddToWorkList(LR);
         }
@@ -1256,72 +1264,88 @@ SVal RegionStoreManager::getBinding(RegionBindingsConstRef B, Loc L, QualType T)
   return svalBuilder.getRegionValueSymbolVal(R);
 }
 
-std::pair<Store, const MemRegion *>
-RegionStoreManager::getLazyBinding(RegionBindingsConstRef B,
-                                   const MemRegion *R,
-                                   const MemRegion *originalRegion) {
-  typedef std::pair<Store, const MemRegion *> StoreRegionPair;
+/// Checks to see if store \p B has a lazy binding for region \p R.
+///
+/// If \p AllowSubregionBindings is \c false, a lazy binding will be rejected
+/// if there are additional bindings within \p R.
+///
+/// Note that unlike RegionStoreManager::findLazyBinding, this will not search
+/// for lazy bindings for super-regions of \p R.
+static Optional<nonloc::LazyCompoundVal>
+getExistingLazyBinding(SValBuilder &SVB, RegionBindingsConstRef B,
+                       const SubRegion *R, bool AllowSubregionBindings) {
+  Optional<SVal> V = B.getDefaultBinding(R);
+  if (!V)
+    return None;
 
+  Optional<nonloc::LazyCompoundVal> LCV = V->getAs<nonloc::LazyCompoundVal>();
+  if (!LCV)
+    return None;
+
+  // If the LCV is for a subregion, the types won't match, and we shouldn't
+  // reuse the binding. Unfortuately we can only check this if the destination
+  // region is a TypedValueRegion.
+  if (const TypedValueRegion *TVR = dyn_cast<TypedValueRegion>(R)) {
+    QualType RegionTy = TVR->getValueType();
+    QualType SourceRegionTy = LCV->getRegion()->getValueType();
+    if (!SVB.getContext().hasSameUnqualifiedType(RegionTy, SourceRegionTy))
+      return None;
+  }
+
+  if (!AllowSubregionBindings) {
+    // If there are any other bindings within this region, we shouldn't reuse
+    // the top-level binding.
+    SmallVector<BindingPair, 16> Bindings;
+    collectSubRegionBindings(Bindings, SVB, *B.lookup(R->getBaseRegion()), R,
+                             /*IncludeAllDefaultBindings=*/true);
+    if (Bindings.size() > 1)
+      return None;
+  }
+
+  return *LCV;
+}
+
+
+std::pair<Store, const SubRegion *>
+RegionStoreManager::findLazyBinding(RegionBindingsConstRef B,
+                                   const SubRegion *R,
+                                   const SubRegion *originalRegion) {
   if (originalRegion != R) {
-    if (Optional<SVal> OV = B.getDefaultBinding(R)) {
-      if (llvm::Optional<nonloc::LazyCompoundVal> V =
-              OV.getPointer()->getAs<nonloc::LazyCompoundVal>())
-        return std::make_pair(V->getStore(), V->getRegion());
-    }
+    if (Optional<nonloc::LazyCompoundVal> V =
+          getExistingLazyBinding(svalBuilder, B, R, true))
+      return std::make_pair(V->getStore(), V->getRegion());
   }
-  
+
+  typedef std::pair<Store, const SubRegion *> StoreRegionPair;
+  StoreRegionPair Result = StoreRegionPair();
+
   if (const ElementRegion *ER = dyn_cast<ElementRegion>(R)) {
-    StoreRegionPair X = getLazyBinding(B, ER->getSuperRegion(), originalRegion);
+    Result = findLazyBinding(B, cast<SubRegion>(ER->getSuperRegion()),
+                             originalRegion);
 
-    if (X.second)
-      return std::make_pair(X.first,
-                            MRMgr.getElementRegionWithSuper(ER, X.second));
-  }
-  else if (const FieldRegion *FR = dyn_cast<FieldRegion>(R)) {
-    StoreRegionPair X = getLazyBinding(B, FR->getSuperRegion(), originalRegion);
+    if (Result.second)
+      Result.second = MRMgr.getElementRegionWithSuper(ER, Result.second);
 
-    if (X.second) {
-      return std::make_pair(X.first,
-                            MRMgr.getFieldRegionWithSuper(FR, X.second));
-    }
-        
+  } else if (const FieldRegion *FR = dyn_cast<FieldRegion>(R)) {
+    Result = findLazyBinding(B, cast<SubRegion>(FR->getSuperRegion()),
+                                       originalRegion);
+
+    if (Result.second)
+      Result.second = MRMgr.getFieldRegionWithSuper(FR, Result.second);
+
   } else if (const CXXBaseObjectRegion *BaseReg =
                dyn_cast<CXXBaseObjectRegion>(R)) {
     // C++ base object region is another kind of region that we should blast
     // through to look for lazy compound value. It is like a field region.
-    StoreRegionPair Result = getLazyBinding(B, BaseReg->getSuperRegion(),
-                                            originalRegion);
+    Result = findLazyBinding(B, cast<SubRegion>(BaseReg->getSuperRegion()),
+                             originalRegion);
     
-    if (Result.second) {
-      // Make sure the types match up.
-      const CXXRecordDecl *LazyD = 0;
-      if (const TypedValueRegion *LazyR =
-            dyn_cast<TypedValueRegion>(Result.second)) {
-        LazyD = LazyR->getValueType()->getAsCXXRecordDecl();
-        if (LazyD)
-          LazyD = LazyD->getCanonicalDecl();
-      }
-
-      typedef SmallVector<const CXXBaseObjectRegion *, 4> BaseListTy;
-      BaseListTy BaseRegions;
-      do {
-        BaseRegions.push_back(BaseReg);
-        BaseReg = dyn_cast<CXXBaseObjectRegion>(BaseReg->getSuperRegion());
-      } while (BaseReg && LazyD != BaseReg->getDecl()->getCanonicalDecl());
-
-      // Layer the base regions on the result in least-to-most derived order.
-      for (BaseListTy::const_reverse_iterator I = BaseRegions.rbegin(),
-                                              E = BaseRegions.rend();
-           I != E; ++I) {
-        Result.second = MRMgr.getCXXBaseObjectRegionWithSuper(*I,
-                                                              Result.second);
-      }
-    }
-
-    return Result;
+    if (Result.second)
+      Result.second = MRMgr.getCXXBaseObjectRegionWithSuper(BaseReg,
+                                                            Result.second);
   }
 
-  return StoreRegionPair();
+  return Result;
 }
 
 SVal RegionStoreManager::getBindingForElement(RegionBindingsConstRef B,
@@ -1346,8 +1370,7 @@ SVal RegionStoreManager::getBindingForElement(RegionBindingsConstRef B,
 
     const StringLiteral *Str = StrR->getStringLiteral();
     SVal Idx = R->getIndex();
-    if (llvm::Optional<nonloc::ConcreteInt> CI =
-            Idx.getAs<nonloc::ConcreteInt>()) {
+    if (Optional<nonloc::ConcreteInt> CI = Idx.getAs<nonloc::ConcreteInt>()) {
       int64_t i = CI->getValue().getSExtValue();
       // Abort on string underrun.  This can be possible by arbitrary
       // clients of getBindingForElement().
@@ -1432,17 +1455,18 @@ RegionStoreManager::getBindingForDerivedDefaultValue(RegionBindingsConstRef B,
     if (val.isUnknownOrUndef())
       return val;
 
-    // Lazy bindings are handled later.
+    // Lazy bindings are usually handled through getExistingLazyBinding().
+    // We should unify these two code paths at some point.
     if (val.getAs<nonloc::LazyCompoundVal>())
-      return Optional<SVal>();
+      return val;
 
     llvm_unreachable("Unknown default value");
   }
 
-  return Optional<SVal>();
+  return None;
 }
 
-SVal RegionStoreManager::getLazyBinding(const MemRegion *LazyBindingRegion,
+SVal RegionStoreManager::getLazyBinding(const SubRegion *LazyBindingRegion,
                                         RegionBindingsRef LazyBinding) {
   SVal Result;
   if (const ElementRegion *ER = dyn_cast<ElementRegion>(LazyBindingRegion))
@@ -1451,7 +1475,7 @@ SVal RegionStoreManager::getLazyBinding(const MemRegion *LazyBindingRegion,
     Result = getBindingForField(LazyBinding,
                                 cast<FieldRegion>(LazyBindingRegion));
 
-  // This is a hack to deal with RegionStore's inability to distinguish a
+  // FIXME: This is a hack to deal with RegionStore's inability to distinguish a
   // default value for /part/ of an aggregate from a default value for the
   // /entire/ aggregate. The most common case of this is when struct Outer
   // has as its first member a struct Inner, which is copied in from a stack
@@ -1482,8 +1506,8 @@ RegionStoreManager::getBindingForFieldOrElementCommon(RegionBindingsConstRef B,
 
   // Lazy binding?
   Store lazyBindingStore = NULL;
-  const MemRegion *lazyBindingRegion = NULL;
-  llvm::tie(lazyBindingStore, lazyBindingRegion) = getLazyBinding(B, R, R);
+  const SubRegion *lazyBindingRegion = NULL;
+  llvm::tie(lazyBindingStore, lazyBindingRegion) = findLazyBinding(B, R, R);
   if (lazyBindingRegion)
     return getLazyBinding(lazyBindingRegion,
                           getRegionBindings(lazyBindingStore));
@@ -1492,12 +1516,34 @@ RegionStoreManager::getBindingForFieldOrElementCommon(RegionBindingsConstRef B,
   // be out of scope of our lookup.
   bool hasSymbolicIndex = false;
 
-  while (superR) {
-    if (const Optional<SVal> &D =
-        getBindingForDerivedDefaultValue(B, superR, R, Ty))
-      return *D;
+  // FIXME: This is a hack to deal with RegionStore's inability to distinguish a
+  // default value for /part/ of an aggregate from a default value for the
+  // /entire/ aggregate. The most common case of this is when struct Outer
+  // has as its first member a struct Inner, which is copied in from a stack
+  // variable. In this case, even if the Outer's default value is symbolic, 0,
+  // or unknown, it gets overridden by the Inner's default value of undefined.
+  //
+  // This is a general problem -- if the Inner is zero-initialized, the Outer
+  // will now look zero-initialized. The proper way to solve this is with a
+  // new version of RegionStore that tracks the extent of a binding as well
+  // as the offset.
+  //
+  // This hack only takes care of the undefined case because that can very
+  // quickly result in a warning.
+  bool hasPartialLazyBinding = false;
 
-    if (const ElementRegion *ER = dyn_cast<ElementRegion>(superR)) {
+  const SubRegion *Base = dyn_cast<SubRegion>(superR);
+  while (Base) {
+    if (Optional<SVal> D = getBindingForDerivedDefaultValue(B, Base, R, Ty)) {
+      if (D->getAs<nonloc::LazyCompoundVal>()) {
+        hasPartialLazyBinding = true;
+        break;
+      }
+
+      return *D;
+    }
+
+    if (const ElementRegion *ER = dyn_cast<ElementRegion>(Base)) {
       NonLoc index = ER->getIndex();
       if (!index.isConstant())
         hasSymbolicIndex = true;
@@ -1505,11 +1551,7 @@ RegionStoreManager::getBindingForFieldOrElementCommon(RegionBindingsConstRef B,
     
     // If our super region is a field or element itself, walk up the region
     // hierarchy to see if there is a default value installed in an ancestor.
-    if (const SubRegion *SR = dyn_cast<SubRegion>(superR)) {
-      superR = SR->getSuperRegion();
-      continue;
-    }
-    break;
+    Base = dyn_cast<SubRegion>(Base->getSuperRegion());
   }
 
   if (R->hasStackNonParametersStorage()) {
@@ -1529,8 +1571,9 @@ RegionStoreManager::getBindingForFieldOrElementCommon(RegionBindingsConstRef B,
     // a symbolic offset.
     if (hasSymbolicIndex)
       return UnknownVal();
-    
-    return UndefinedVal();
+
+    if (!hasPartialLazyBinding)
+      return UndefinedVal();
   }
 
   // All other values are symbolic.
@@ -1560,21 +1603,21 @@ SVal RegionStoreManager::getBindingForObjCIvar(RegionBindingsConstRef B,
 static Optional<SVal> getConstValue(SValBuilder &SVB, const VarDecl *VD) {
   ASTContext &Ctx = SVB.getContext();
   if (!VD->getType().isConstQualified())
-    return Optional<SVal>();
+    return None;
 
   const Expr *Init = VD->getInit();
   if (!Init)
-    return Optional<SVal>();
+    return None;
 
   llvm::APSInt Result;
-  if (Init->EvaluateAsInt(Result, Ctx))
+  if (!Init->isGLValue() && Init->EvaluateAsInt(Result, Ctx))
     return SVB.makeIntVal(Result);
 
   if (Init->isNullPointerConstant(Ctx, Expr::NPC_ValueDependentIsNotNull))
     return SVB.makeNull();
 
   // FIXME: Handle other possible constant expressions.
-  return Optional<SVal>();
+  return None;
 }
 
 SVal RegionStoreManager::getBindingForVar(RegionBindingsConstRef B,
@@ -1609,8 +1652,10 @@ SVal RegionStoreManager::getBindingForVar(RegionBindingsConstRef B,
     if (isa<StaticGlobalSpaceRegion>(MS))
       return svalBuilder.makeZeroVal(T);
 
-    if (Optional<SVal> V = getBindingForDerivedDefaultValue(B, MS, R, T))
+    if (Optional<SVal> V = getBindingForDerivedDefaultValue(B, MS, R, T)) {
+      assert(!V->getAs<nonloc::LazyCompoundVal>());
       return V.getValue();
+    }
 
     return svalBuilder.getRegionValueSymbolVal(R);
   }
@@ -1642,17 +1687,17 @@ RegionStoreManager::getInterestingValues(nonloc::LazyCompoundVal LCV) {
   if (!Cluster)
     return (LazyBindingsMap[LCV.getCVData()] = llvm_move(List));
 
-  SmallVector<BindingKey, 32> Keys;
-  collectSubRegionKeys(Keys, svalBuilder, *Cluster, LazyR,
-                       /*IncludeAllDefaultBindings=*/true);
-  for (SmallVectorImpl<BindingKey>::const_iterator I = Keys.begin(),
-                                                   E = Keys.end();
+  SmallVector<BindingPair, 32> Bindings;
+  collectSubRegionBindings(Bindings, svalBuilder, *Cluster, LazyR,
+                           /*IncludeAllDefaultBindings=*/true);
+  for (SmallVectorImpl<BindingPair>::const_iterator I = Bindings.begin(),
+                                                    E = Bindings.end();
        I != E; ++I) {
-    SVal V = *Cluster->lookup(*I);
+    SVal V = I->second;
     if (V.isUnknownOrUndef() || V.isConstant())
       continue;
 
-    if (llvm::Optional<nonloc::LazyCompoundVal> InnerLCV =
+    if (Optional<nonloc::LazyCompoundVal> InnerLCV =
             V.getAs<nonloc::LazyCompoundVal>()) {
       const SValListTy &InnerList = getInterestingValues(*InnerLCV);
       List.insert(List.end(), InnerList.begin(), InnerList.end());
@@ -1667,17 +1712,9 @@ RegionStoreManager::getInterestingValues(nonloc::LazyCompoundVal LCV) {
 
 NonLoc RegionStoreManager::createLazyBinding(RegionBindingsConstRef B,
                                              const TypedValueRegion *R) {
-  // If we already have a lazy binding, and it's for the whole structure,
-  // don't create a new lazy binding.
-  if (Optional<SVal> V = B.getDefaultBinding(R)) {
-    if (llvm::Optional<nonloc::LazyCompoundVal> LCV =
-            V.getPointer()->getAs<nonloc::LazyCompoundVal>()) {
-      QualType RegionTy = R->getValueType();
-      QualType SourceRegionTy = LCV->getRegion()->getValueType();
-      if (Ctx.hasSameUnqualifiedType(RegionTy, SourceRegionTy))
-        return *LCV;
-    }
-  }
+  if (Optional<nonloc::LazyCompoundVal> V =
+        getExistingLazyBinding(svalBuilder, B, R, false))
+    return *V;
 
   return svalBuilder.makeLazyCompoundVal(StoreRef(B.asStore(), *this), R);
 }
@@ -1728,7 +1765,7 @@ bool RegionStoreManager::includedInBindings(Store store,
 //===----------------------------------------------------------------------===//
 
 StoreRef RegionStoreManager::killBinding(Store ST, Loc L) {
-  if (llvm::Optional<loc::MemRegionVal> LV = L.getAs<loc::MemRegionVal>())
+  if (Optional<loc::MemRegionVal> LV = L.getAs<loc::MemRegionVal>())
     if (const MemRegion* R = LV->getRegion())
       return StoreRef(getRegionBindings(ST).removeBinding(R)
                                            .asImmutableMap()
@@ -1820,7 +1857,7 @@ RegionStoreManager::bindArray(RegionBindingsConstRef B,
     Size = CAT->getSize().getZExtValue();
 
   // Check if the init expr is a string literal.
-  if (llvm::Optional<loc::MemRegionVal> MRV = Init.getAs<loc::MemRegionVal>()) {
+  if (Optional<loc::MemRegionVal> MRV = Init.getAs<loc::MemRegionVal>()) {
     const StringRegion *S = cast<StringRegion>(MRV->getRegion());
 
     // Treat the string as a lazy compound value.
@@ -2057,7 +2094,7 @@ void removeDeadBindingsWorker::VisitCluster(const MemRegion *baseR,
 
 void removeDeadBindingsWorker::VisitBinding(SVal V) {
   // Is it a LazyCompoundVal?  All referenced regions are live as well.
-  if (llvm::Optional<nonloc::LazyCompoundVal> LCS =
+  if (Optional<nonloc::LazyCompoundVal> LCS =
           V.getAs<nonloc::LazyCompoundVal>()) {
 
     const RegionStoreManager::SValListTy &Vals = RM.getInterestingValues(*LCS);

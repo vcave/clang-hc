@@ -258,7 +258,7 @@ void Preprocessor::SkipExcludedConditionalBlock(SourceLocation IfTokenLoc,
     // directive mode.  Tell the lexer this so any newlines we see will be
     // converted into an EOD token (this terminates the macro).
     CurPPLexer->ParsingPreprocessorDirective = true;
-    if (CurLexer) CurLexer->SetCommentRetentionState(false);
+    if (CurLexer) CurLexer->SetKeepWhitespaceMode(false);
 
 
     // Read the next token, the directive flavor.
@@ -269,7 +269,7 @@ void Preprocessor::SkipExcludedConditionalBlock(SourceLocation IfTokenLoc,
     if (Tok.isNot(tok::raw_identifier)) {
       CurPPLexer->ParsingPreprocessorDirective = false;
       // Restore comment saving mode.
-      if (CurLexer) CurLexer->SetCommentRetentionState(KeepComments);
+      if (CurLexer) CurLexer->resetExtendedTokenMode();
       continue;
     }
 
@@ -285,7 +285,7 @@ void Preprocessor::SkipExcludedConditionalBlock(SourceLocation IfTokenLoc,
         FirstChar != 'i' && FirstChar != 'e') {
       CurPPLexer->ParsingPreprocessorDirective = false;
       // Restore comment saving mode.
-      if (CurLexer) CurLexer->SetCommentRetentionState(KeepComments);
+      if (CurLexer) CurLexer->resetExtendedTokenMode();
       continue;
     }
 
@@ -302,7 +302,7 @@ void Preprocessor::SkipExcludedConditionalBlock(SourceLocation IfTokenLoc,
       if (IdLen >= 20) {
         CurPPLexer->ParsingPreprocessorDirective = false;
         // Restore comment saving mode.
-        if (CurLexer) CurLexer->SetCommentRetentionState(KeepComments);
+        if (CurLexer) CurLexer->resetExtendedTokenMode();
         continue;
       }
       memcpy(DirectiveBuf, &DirectiveStr[0], IdLen);
@@ -408,7 +408,7 @@ void Preprocessor::SkipExcludedConditionalBlock(SourceLocation IfTokenLoc,
 
     CurPPLexer->ParsingPreprocessorDirective = false;
     // Restore comment saving mode.
-    if (CurLexer) CurLexer->SetCommentRetentionState(KeepComments);
+    if (CurLexer) CurLexer->resetExtendedTokenMode();
   }
 
   // Finally, if we are out of the conditional (saw an #endif or ran off the end
@@ -594,6 +594,7 @@ void Preprocessor::HandleDirective(Token &Result) {
   // mode.  Tell the lexer this so any newlines we see will be converted into an
   // EOD token (which terminates the directive).
   CurPPLexer->ParsingPreprocessorDirective = true;
+  if (CurLexer) CurLexer->SetKeepWhitespaceMode(false);
 
   ++NumDirectives;
 
@@ -638,14 +639,9 @@ void Preprocessor::HandleDirective(Token &Result) {
   // and reset to previous state when returning from this function.
   ResetMacroExpansionHelper helper(this);
 
-TryAgain:
   switch (Result.getKind()) {
   case tok::eod:
     return;   // null directive.
-  case tok::comment:
-    // Handle stuff like "# /*foo*/ define X" in -E -C mode.
-    LexUnexpandedToken(Result);
-    goto TryAgain;
   case tok::code_completion:
     if (CodeComplete)
       CodeComplete->CodeCompleteDirective(
@@ -1942,7 +1938,7 @@ void Preprocessor::HandleDefineDirective(Token &DefineTok) {
       WarnUnusedMacroLocs.erase(OtherMI->getDefinitionLoc());
   }
 
-  setMacroDirective(MacroNameTok.getIdentifierInfo(), MI);
+  MacroDirective *MD = setMacroDirective(MacroNameTok.getIdentifierInfo(), MI);
 
   assert(!MI->isUsed());
   // If we need warning for not using the macro, add its location in the
@@ -1956,7 +1952,7 @@ void Preprocessor::HandleDefineDirective(Token &DefineTok) {
 
   // If the callbacks want to know, tell them about the macro definition.
   if (Callbacks)
-    Callbacks->MacroDefined(MacroNameTok, MI);
+    Callbacks->MacroDefined(MacroNameTok, MD);
 }
 
 /// HandleUndefDirective - Implements \#undef.
@@ -1981,7 +1977,7 @@ void Preprocessor::HandleUndefDirective(Token &UndefTok) {
   // If the callbacks want to know, tell them about the macro #undef.
   // Note: no matter if the macro was defined or not.
   if (Callbacks)
-    Callbacks->MacroUndefined(MacroNameTok, MI);
+    Callbacks->MacroUndefined(MacroNameTok, MD);
 
   // If the macro is not defined, this is a noop undef, just return.
   if (MI == 0) return;
@@ -2039,7 +2035,8 @@ void Preprocessor::HandleIfdefDirective(Token &Result, bool isIfndef,
   CheckEndOfDirective(isIfndef ? "ifndef" : "ifdef");
 
   IdentifierInfo *MII = MacroNameTok.getIdentifierInfo();
-  MacroInfo *MI = getMacroInfo(MII);
+  MacroDirective *MD = getMacroDirective(MII);
+  MacroInfo *MI = MD ? MD->getInfo() : 0;
 
   if (CurPPLexer->getConditionalStackDepth() == 0) {
     // If the start of a top-level #ifdef and if the macro is not defined,
@@ -2059,9 +2056,9 @@ void Preprocessor::HandleIfdefDirective(Token &Result, bool isIfndef,
 
   if (Callbacks) {
     if (isIfndef)
-      Callbacks->Ifndef(DirectiveTok.getLocation(), MacroNameTok, MI);
+      Callbacks->Ifndef(DirectiveTok.getLocation(), MacroNameTok, MD);
     else
-      Callbacks->Ifdef(DirectiveTok.getLocation(), MacroNameTok, MI);
+      Callbacks->Ifdef(DirectiveTok.getLocation(), MacroNameTok, MD);
   }
 
   // Should we include the stuff contained by this directive?

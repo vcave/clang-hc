@@ -3119,8 +3119,6 @@ class DarwinX86_64TargetInfo : public DarwinTargetInfo<X86_64TargetInfo> {
 public:
   DarwinX86_64TargetInfo(const std::string& triple)
       : DarwinTargetInfo<X86_64TargetInfo>(triple) {
-    IntMaxType = SignedLongLong;
-    UIntMaxType = UnsignedLongLong;
     Int64Type = SignedLongLong;
     MaxVectorAlign = 256;
   }
@@ -3722,6 +3720,12 @@ public:
 
   virtual CallingConvCheckResult checkCallingConvention(CallingConv CC) const {
     return (CC == CC_AAPCS || CC == CC_AAPCS_VFP) ? CCCR_OK : CCCR_Warning;
+  }
+
+  virtual int getEHDataRegisterNumber(unsigned RegNo) const {
+    if (RegNo == 0) return 0;
+    if (RegNo == 1) return 1;
+    return -1;
   }
 };
 
@@ -4407,6 +4411,12 @@ public:
         Name == "mips16" || Name == "dsp" || Name == "dspr2") {
       Features[Name] = Enabled;
       return true;
+    } else if (Name == "32") {
+      Features["o32"] = Enabled;
+      return true;
+    } else if (Name == "64") {
+      Features["n64"] = Enabled;
+      return true;
     }
     return false;
   }
@@ -4436,6 +4446,12 @@ public:
     if (it != Features.end())
       Features.erase(it);
   }
+
+  virtual int getEHDataRegisterNumber(unsigned RegNo) const {
+    if (RegNo == 0) return 4;
+    if (RegNo == 1) return 5;
+    return -1;
+  }
 };
 
 const Builtin::Info MipsTargetInfoBase::BuiltinInfo[] = {
@@ -4456,6 +4472,9 @@ public:
   virtual bool setABI(const std::string &Name) {
     if ((Name == "o32") || (Name == "eabi")) {
       ABI = Name;
+      return true;
+    } else if (Name == "32") {
+      ABI = "o32";
       return true;
     } else
       return false;
@@ -4561,18 +4580,19 @@ public:
   }
   virtual bool setABI(const std::string &Name) {
     SetDescriptionString(Name);
-
-    if (Name != "n32" && Name != "n64")
-      return false;
-
-    ABI = Name;
-
     if (Name == "n32") {
       LongWidth = LongAlign = 32;
       PointerWidth = PointerAlign = 32;
-    }
-
-    return true;
+      ABI = Name;
+      return true;
+    } else if (Name == "n64") {
+      ABI = Name;
+      return true;
+    } else if (Name == "64") {
+      ABI = "n64";
+      return true;
+    } else
+      return false;
   }
   virtual void getTargetDefines(const LangOptions &Opts,
                                 MacroBuilder &Builder) const {

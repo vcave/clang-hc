@@ -924,11 +924,10 @@ private:
   /// \brief Reads a statement from the specified cursor.
   Stmt *ReadStmtFromStream(ModuleFile &F);
 
-  typedef llvm::PointerIntPair<const FileEntry *, 1, bool> InputFile;
-
   /// \brief Retrieve the file entry and 'overridden' bit for an input
   /// file in the given module file.
-  InputFile getInputFile(ModuleFile &F, unsigned ID, bool Complain = true);
+  serialization::InputFile getInputFile(ModuleFile &F, unsigned ID,
+                                        bool Complain = true);
 
   /// \brief Get a FileEntry out of stored-in-PCH filename, making sure we take
   /// into account all the necessary relocations.
@@ -1274,8 +1273,8 @@ public:
 
   /// \brief Optionally returns true or false if the preallocated preprocessed
   /// entity with index \p Index came from file \p FID.
-  virtual llvm::Optional<bool> isPreprocessedEntityInFileID(unsigned Index,
-                                                            FileID FID);
+  virtual Optional<bool> isPreprocessedEntityInFileID(unsigned Index,
+                                                      FileID FID);
 
   /// \brief Read the header file information for the given file entry.
   virtual HeaderFileInfo GetHeaderFileInfo(const FileEntry *FE);
