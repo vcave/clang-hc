@@ -1863,8 +1863,8 @@ void StmtPrinter::VisitAsTypeExpr(AsTypeExpr *Node) {
 
 void StmtPrinter::VisitHcAsyncStmt(HcAsyncStmt *Node) {
     Indent() << "async ";
-    HcFinishStmt::hc_clauses_iterator B = Node->hc_clauses_begin();
-    for (HcFinishStmt::hc_clauses_iterator I = B, E = Node->hc_clauses_end();
+    HcAsyncStmt::hc_clauses_iterator B = Node->hc_clauses_begin();
+    for (HcAsyncStmt::hc_clauses_iterator I = B, E = Node->hc_clauses_end();
          I != E; ++I) {
         if (I != B)
             OS << ", ";
@@ -1886,7 +1886,7 @@ void StmtPrinter::VisitHcFinishStmt(HcFinishStmt *Node) {
 }
 
 void StmtPrinter::VisitHcClauseStmt(HcClauseStmt *Node) {
-    Indent() << Node->getKindAsString();
+    OS << Node->getKindAsString();
     PrintExpr(Node->getExprList());
 }
 
