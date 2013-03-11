@@ -1963,9 +1963,7 @@ public:
 /// \brief HcConstructStmt - An abstract AST Node other HC constructs can extend.
 /// An HC construct is typically a keyword followed by one or more clauses and a body
 class HcConstructStmt : public Stmt {
-    enum { BODY, END_EXPR };
-    Stmt* SubExprs[END_EXPR];
-    Stmt** ClausesStmts;
+    Stmt ** SubExprs;
     unsigned NumClausesStmts;
     SourceLocation HcConstructLoc;
     
@@ -1973,29 +1971,29 @@ public:
     HcConstructStmt(StmtClass SC, SourceLocation HcConstructLoc, ArrayRef<Stmt*> ClausesStmts, Stmt *body);
     
     /// \brief Build an empty hc construct statement.
-    explicit HcConstructStmt(StmtClass SC, EmptyShell Empty) : Stmt(SC, Empty), ClausesStmts(0), NumClausesStmts(0) { };
-    Stmt *getBody() { return SubExprs[BODY]; }
-    const Stmt *getBody() const { return SubExprs[BODY]; }
-    void setBody(Stmt *S) { SubExprs[BODY] = S; }
+    explicit HcConstructStmt(StmtClass SC, EmptyShell Empty) : Stmt(SC, Empty), NumClausesStmts(0) { };
+    Stmt *getBody() { return SubExprs[NumClausesStmts]; }
+    const Stmt *getBody() const { return SubExprs[NumClausesStmts]; }
+    void setBody(Stmt *S) { SubExprs[NumClausesStmts] = S; }
 
     SourceLocation getConstructLoc() const { return HcConstructLoc; }
     void setConstructLoc(SourceLocation L) { HcConstructLoc = L; }
 
     SourceLocation getLocStart() const LLVM_READONLY { return HcConstructLoc; }
     SourceLocation getLocEnd() const LLVM_READONLY {
-        return SubExprs[BODY]->getLocEnd();
+        return SubExprs[NumClausesStmts]->getLocEnd();
     }
     
     void setClausesStmts(ASTContext &C, Stmt **Stmts, unsigned NumStmts);
     typedef Stmt** hc_clauses_iterator;
-    hc_clauses_iterator hc_clauses_begin() { return ClausesStmts; }
-    hc_clauses_iterator hc_clauses_end() { return ClausesStmts + NumClausesStmts; }
+    hc_clauses_iterator hc_clauses_begin() { return SubExprs; }
+    hc_clauses_iterator hc_clauses_end() { return SubExprs + NumClausesStmts; }
     bool hc_clauses_empty() const { return NumClausesStmts == 0; }
     bool hc_clauses_size() const { return NumClausesStmts; }
 
     // Iterators over subexpressions.
     child_range children() {
-        return child_range(&SubExprs[0], &SubExprs[0]+END_EXPR);
+        return child_range(&SubExprs[0], &SubExprs[0] + NumClausesStmts + 1);
     }
     
     static bool classof(const Stmt *T) {

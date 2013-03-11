@@ -1029,19 +1029,21 @@ SEHFinallyStmt* SEHFinallyStmt::Create(ASTContext &C,
 HcConstructStmt::HcConstructStmt(StmtClass SC, SourceLocation HcConstructLoc, ArrayRef<Stmt*> clausesStmts, Stmt *body)
 : Stmt(SC), HcConstructLoc(HcConstructLoc)
 {
-    SubExprs[BODY] = body;
-    ClausesStmts = new Stmt*[clausesStmts.size()];
     NumClausesStmts = clausesStmts.size();
-    std::copy(clausesStmts.begin(), clausesStmts.end(), ClausesStmts);
+    unsigned NumSubExprs = NumClausesStmts + 1;
+    SubExprs = new Stmt*[NumSubExprs];
+    std::copy(clausesStmts.begin(), clausesStmts.end(), SubExprs);
+    SubExprs[NumClausesStmts] = body;
 }
 
 void HcConstructStmt::setClausesStmts(ASTContext &C, Stmt **Stmts, unsigned NumStmts) {
-    if (ClausesStmts)
+    if (SubExprs)
         C.Deallocate(Stmts);
+    Stmt * body = SubExprs[NumClausesStmts];
     NumClausesStmts = NumStmts;
-    ClausesStmts = new (C) Stmt*[NumClausesStmts];
-    memcpy(ClausesStmts, Stmts, sizeof(Stmt *) * NumClausesStmts);
-
+    SubExprs = new (C) Stmt*[NumClausesStmts+1];
+    memcpy(SubExprs, Stmts, sizeof(Stmt *) * NumClausesStmts);
+    SubExprs[NumClausesStmts] = body;
 }
 
 HcClauseStmt::HcClauseStmt(SourceLocation HcClauseLoc, HcClauseKind kind, Expr *ExprList)
