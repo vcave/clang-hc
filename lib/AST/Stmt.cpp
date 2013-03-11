@@ -1029,6 +1029,7 @@ SEHFinallyStmt* SEHFinallyStmt::Create(ASTContext &C,
 HcConstructStmt::HcConstructStmt(StmtClass SC, SourceLocation HcConstructLoc, ArrayRef<Stmt*> clausesStmts, Stmt *body)
 : Stmt(SC), HcConstructLoc(HcConstructLoc)
 {
+    // First store hc-clauses then the body
     NumClausesStmts = clausesStmts.size();
     unsigned NumSubExprs = NumClausesStmts + 1;
     SubExprs = new Stmt*[NumSubExprs];
@@ -1039,6 +1040,8 @@ HcConstructStmt::HcConstructStmt(StmtClass SC, SourceLocation HcConstructLoc, Ar
 void HcConstructStmt::setClausesStmts(ASTContext &C, Stmt **Stmts, unsigned NumStmts) {
     if (SubExprs)
         C.Deallocate(Stmts);
+    // Carefully need to remember the body and, perform
+    // the memcpy and reinsert the body at the end.
     Stmt * body = SubExprs[NumClausesStmts];
     NumClausesStmts = NumStmts;
     SubExprs = new (C) Stmt*[NumClausesStmts+1];

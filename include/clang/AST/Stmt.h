@@ -1963,6 +1963,7 @@ public:
 /// \brief HcConstructStmt - An abstract AST Node other HC constructs can extend.
 /// An HC construct is typically a keyword followed by one or more clauses and a body
 class HcConstructStmt : public Stmt {
+    /// Careful when modifying this code, SubExprs, stores a list of hc clause, then the body
     Stmt ** SubExprs;
     unsigned NumClausesStmts;
     SourceLocation HcConstructLoc;
@@ -1993,6 +1994,7 @@ public:
 
     // Iterators over subexpressions.
     child_range children() {
+        // From begin to end of hc clause + body
         return child_range(&SubExprs[0], &SubExprs[0] + NumClausesStmts + 1);
     }
     
