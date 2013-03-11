@@ -1031,6 +1031,7 @@ HcConstructStmt::HcConstructStmt(StmtClass SC, SourceLocation HcConstructLoc, Ar
 {
     SubExprs[BODY] = body;
     ClausesStmts = new Stmt*[clausesStmts.size()];
+    NumClausesStmts = clausesStmts.size();
     std::copy(clausesStmts.begin(), clausesStmts.end(), ClausesStmts);
 }
 
