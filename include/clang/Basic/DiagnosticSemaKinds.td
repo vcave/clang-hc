@@ -5996,6 +5996,10 @@ def warn_duplicate_attribute : Warning<
   "attribute %0 is already applied with different parameters">,
   InGroup<IgnoredAttributes>;
 
+// HC
+def err_hc_invalid_clause_argument : Error<
+  "clause argument must be a variable">;
+
 // Type
 def ext_invalid_sign_spec : Extension<"'%0' cannot be signed or unsigned">;
 def warn_receiver_forward_class : Warning<

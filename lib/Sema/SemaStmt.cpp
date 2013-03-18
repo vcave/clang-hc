@@ -1236,7 +1236,6 @@ Sema::ActOnHcFinishStmt(SourceLocation ConstructLoc, MultiStmtArg ClausesStmts, 
 StmtResult Sema::ActOnHcClauseStmt(SourceLocation ClauseLoc,
                              HcClauseKind kind,
                              Expr *ExprList) {
-    //HC-TODO
     // Here we need to check that we're getting an expression list
     // and that each sub-expression is a variable identifier.
 
@@ -1245,6 +1244,55 @@ StmtResult Sema::ActOnHcClauseStmt(SourceLocation ClauseLoc,
     //       to specialize it.
     //       Otherwise extend the HcClauseStmt AST node.
     
+    if (ParenExpr * parenExpr = dyn_cast_or_null<ParenExpr>(ExprList)) {
+        // The ParenExpr should be composed of BinaryOperator containing DeclRefExpr
+        Expr * SubExpr = parenExpr->getSubExpr();
+        while(SubExpr != NULL) {
+            if (BinaryOperator * op = dyn_cast_or_null<BinaryOperator>(SubExpr)) {
+                // left can be either BinaryOperator or DeclRefExpr
+                if (Expr * LHS = dyn_cast_or_null<BinaryOperator>(op->getLHS())) {
+                    SubExpr = LHS;
+                } else {
+                    if(dyn_cast_or_null<ImplicitCastExpr>(op->getLHS())) {
+                         LHS = ((ImplicitCastExpr *) op->getLHS())->getSubExpr();
+                    }
+                    LHS = dyn_cast_or_null<DeclRefExpr>(LHS);                    
+                    if (!LHS) {
+                        return StmtError(Diag(op->getLHS()->getExprLoc(),
+                                          diag::err_hc_invalid_clause_argument));
+                    }
+                    SubExpr = NULL;
+                }
+                Expr * RHS = NULL;
+                if(dyn_cast_or_null<ImplicitCastExpr>(op->getRHS())) {
+                    RHS = ((ImplicitCastExpr *) op->getRHS())->getSubExpr();
+                }
+                // right should be DeclRefExpr
+                RHS = dyn_cast_or_null<DeclRefExpr>(RHS);
+                if (!RHS) {
+                    return StmtError(Diag(op->getRHS()->getExprLoc(),
+                                          diag::err_hc_invalid_clause_argument));
+                }
+            } else {
+                Expr * SubExprCast = (Expr *) SubExpr;
+                if(dyn_cast_or_null<ImplicitCastExpr>(SubExprCast)) {
+                    SubExprCast = ((ImplicitCastExpr *) SubExprCast)->getSubExpr();
+                }
+                SubExprCast = dyn_cast_or_null<DeclRefExpr>(SubExprCast);
+                if (!SubExprCast) {
+                    return StmtError(Diag(SubExpr->getExprLoc(),
+                                          diag::err_hc_invalid_clause_argument));
+                }
+                SubExpr = NULL;
+            }
+        }
+        // get back to original stuff for printing
+        SubExpr = parenExpr->getSubExpr();
+        QualType QT = SubExpr->getType();
+        std::string TypeStr = QT.getAsString();
+    } else {
+        // Empty-arg clause - This is caught early on.
+}
     //HC-TODO not sure we need to pass the context down as it's done
     //for if-stmt
     return Owned(new (Context) HcClauseStmt(ClauseLoc, kind, ExprList));
