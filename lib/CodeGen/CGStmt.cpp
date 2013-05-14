@@ -134,7 +134,10 @@ void CodeGenFunction::EmitStmt(const Stmt *S) {
   case Stmt::SwitchStmtClass:   EmitSwitchStmt(cast<SwitchStmt>(*S));     break;
   case Stmt::GCCAsmStmtClass:   // Intentional fall-through.
   case Stmt::MSAsmStmtClass:    EmitAsmStmt(cast<AsmStmt>(*S));           break;
-
+//HC
+  case Stmt::HcAsyncStmtClass:  EmitHcAsyncStmt(cast<HcAsyncStmt>(*S));   break;
+  case Stmt::HcClauseStmtClass: EmitHcClauseStmt(cast<HcClauseStmt>(*S)); break;
+  case Stmt::HcFinishStmtClass: EmitHcFinishStmt(cast<HcFinishStmt>(*S)); break;
   case Stmt::ObjCAtTryStmtClass:
     EmitObjCAtTryStmt(cast<ObjCAtTryStmt>(*S));
     break;
@@ -664,6 +667,26 @@ void CodeGenFunction::EmitForStmt(const ForStmt &S) {
   // Emit the fall-through block.
   EmitBlock(LoopExit.getBlock(), true);
 }
+
+//HC
+void CodeGenFunction::EmitHcAsyncStmt(const HcAsyncStmt &S) {
+    // Need to Emit children
+    RunCleanupsScope AsyncScope(*this);
+    EmitStmt(S.getBody());
+}
+
+//HC
+void CodeGenFunction::EmitHcClauseStmt(const HcClauseStmt &S) {
+    // No-OP for now
+}
+
+//HC
+void CodeGenFunction::EmitHcFinishStmt(const HcFinishStmt&S) {
+    // Need to Emit children
+    RunCleanupsScope FinishScope(*this);
+    EmitStmt(S.getBody());
+}
+
 
 void CodeGenFunction::EmitCXXForRangeStmt(const CXXForRangeStmt &S) {
   JumpDest LoopExit = getJumpDestInCurrentScope("for.end");

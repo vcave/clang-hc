@@ -2094,7 +2094,9 @@ public:
   void EmitCaseStmt(const CaseStmt &S);
   void EmitCaseStmtRange(const CaseStmt &S);
   void EmitAsmStmt(const AsmStmt &S);
-
+  void EmitHcAsyncStmt(const HcAsyncStmt &S);
+  void EmitHcClauseStmt(const HcClauseStmt &S);
+  void EmitHcFinishStmt(const HcFinishStmt&S);
   void EmitObjCForCollectionStmt(const ObjCForCollectionStmt &S);
   void EmitObjCAtTryStmt(const ObjCAtTryStmt &S);
   void EmitObjCAtThrowStmt(const ObjCAtThrowStmt &S);
