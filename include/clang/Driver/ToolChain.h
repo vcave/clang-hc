@@ -10,8 +10,10 @@
 #ifndef CLANG_DRIVER_TOOLCHAIN_H_
 #define CLANG_DRIVER_TOOLCHAIN_H_
 
+#include "clang/Driver/Action.h"
 #include "clang/Driver/Types.h"
 #include "clang/Driver/Util.h"
+#include "llvm/ADT/OwningPtr.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Support/Path.h"
@@ -57,8 +59,20 @@ private:
   /// programs.
   path_list ProgramPaths;
 
+  mutable OwningPtr<Tool> Clang;
+  mutable OwningPtr<Tool> Assemble;
+  mutable OwningPtr<Tool> Link;
+  Tool *getClang() const;
+  Tool *getAssemble() const;
+  Tool *getLink() const;
+  Tool *getClangAs() const;
+
 protected:
   ToolChain(const Driver &D, const llvm::Triple &T, const ArgList &Args);
+
+  virtual Tool *buildAssembler() const;
+  virtual Tool *buildLinker() const;
+  virtual Tool *getTool(Action::ActionClass AC) const;
 
   /// \name Utilities for implementing subclasses.
   ///@{
@@ -68,6 +82,9 @@ protected:
   static void addExternCSystemInclude(const ArgList &DriverArgs,
                                       ArgStringList &CC1Args,
                                       const Twine &Path);
+  static void addExternCSystemIncludeIfExists(const ArgList &DriverArgs,
+                                              ArgStringList &CC1Args,
+                                              const Twine &Path);
   static void addSystemIncludes(const ArgList &DriverArgs,
                                 ArgStringList &CC1Args,
                                 ArrayRef<StringRef> Paths);
@@ -112,9 +129,8 @@ public:
     return 0;
   }
 
-  /// SelectTool - Choose a tool to use to handle the action \p JA with the
-  /// given \p Inputs.
-  virtual Tool &SelectTool(const JobAction &JA) const = 0;
+  /// Choose a tool to use to handle the action \p JA.
+  Tool *SelectTool(const JobAction &JA) const;
 
   // Helper methods
 
@@ -182,9 +198,13 @@ public:
   /// \brief Test whether this toolchain defaults to PIC.
   virtual bool isPICDefault() const = 0;
 
-  /// \brief Tests whether this toolchain forces its default for PIC or non-PIC.
-  /// If this returns true, any PIC related flags should be ignored and instead
-  /// the result of \c isPICDefault() is used exclusively.
+  /// \brief Test whether this toolchain defaults to PIE.
+  virtual bool isPIEDefault() const = 0;
+
+  /// \brief Tests whether this toolchain forces its default for PIC, PIE or
+  /// non-PIC.  If this returns true, any PIC related flags should be ignored
+  /// and instead the results of \c isPICDefault() and \c isPIEDefault() are
+  /// used exclusively.
   virtual bool isPICDefaultForced() const = 0;
 
   /// SupportsProfiling - Does this tool chain support -pg.
