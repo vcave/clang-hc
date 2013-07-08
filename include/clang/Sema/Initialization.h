@@ -384,6 +384,13 @@ public:
     assert(getKind() == EK_LambdaCapture && "Not a lambda capture!");
     return SourceLocation::getFromRawEncoding(Capture.Location);
   }
+
+  /// Dump a representation of the initialized entity to standard error,
+  /// for debugging purposes.
+  void dump() const;
+
+private:
+  unsigned dumpImpl(raw_ostream &OS) const;
 };
   
 /// \brief Describes the kind of initialization being performed, along with 
@@ -706,6 +713,16 @@ public:
     /// \brief Array must be initialized with an initializer list or a 
     /// string literal.
     FK_ArrayNeedsInitListOrStringLiteral,
+    /// \brief Array must be initialized with an initializer list or a
+    /// wide string literal.
+    FK_ArrayNeedsInitListOrWideStringLiteral,
+    /// \brief Initializing a wide char array with narrow string literal.
+    FK_NarrowStringIntoWideCharArray,
+    /// \brief Initializing char array with wide string literal.
+    FK_WideStringIntoCharArray,
+    /// \brief Initializing wide char array with incompatible wide string
+    /// literal.
+    FK_IncompatWideStringIntoWideChar,
     /// \brief Array type mismatch.
     FK_ArrayTypeMismatch,
     /// \brief Non-constant array initializer
@@ -753,9 +770,6 @@ public:
     /// \brief Initializer has a placeholder type which cannot be
     /// resolved by initialization.
     FK_PlaceholderType,
-    /// \brief Failed to initialize a std::initializer_list because copy
-    /// construction of some element failed.
-    FK_InitListElementCopyFailure,
     /// \brief List-copy-initialization chose an explicit constructor.
     FK_ExplicitConstructor
   };
@@ -841,12 +855,12 @@ public:
   void setSequenceKind(enum SequenceKind SK) { SequenceKind = SK; }
   
   /// \brief Determine whether the initialization sequence is valid.
-  operator bool() const { return !Failed(); }
+  LLVM_EXPLICIT operator bool() const { return !Failed(); }
 
   /// \brief Determine whether the initialization sequence is invalid.
   bool Failed() const { return SequenceKind == FailedSequence; }
-  
-  typedef SmallVector<Step, 4>::const_iterator step_iterator;
+
+  typedef SmallVectorImpl<Step>::const_iterator step_iterator;
   step_iterator step_begin() const { return Steps.begin(); }
   step_iterator step_end()   const { return Steps.end(); }
 

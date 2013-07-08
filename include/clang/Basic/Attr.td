@@ -441,7 +441,6 @@ def Mips16 : InheritableAttr {
 def Mode : Attr {
   let Spellings = [GNU<"mode">, CXX11<"gnu", "mode">];
   let Args = [IdentifierArgument<"Mode">];
-  let ASTNode = 0;
 }
 
 def Naked : InheritableAttr {
@@ -852,6 +851,20 @@ def SharedLockFunction : InheritableAttr {
   let TemplateDependent = 1;
 }
 
+def AssertExclusiveLock : InheritableAttr {
+  let Spellings = [GNU<"assert_exclusive_lock">];
+  let Args = [VariadicExprArgument<"Args">];
+  let LateParsed = 1;
+  let TemplateDependent = 1;
+}
+
+def AssertSharedLock : InheritableAttr {
+  let Spellings = [GNU<"assert_shared_lock">];
+  let Args = [VariadicExprArgument<"Args">];
+  let LateParsed = 1;
+  let TemplateDependent = 1;
+}
+
 // The first argument is an integer or boolean value specifying the return value
 // of a successful lock acquisition.
 def ExclusiveTrylockFunction : InheritableAttr {
@@ -948,6 +961,10 @@ def ForceInline : InheritableAttr {
   let Spellings = [Keyword<"__forceinline">];
 }
 
+def SelectAny : InheritableAttr {
+  let Spellings = [Declspec<"selectany">];
+}
+
 def Win64 : InheritableAttr {
   let Spellings = [Keyword<"__w64">];
 }
@@ -958,6 +975,14 @@ def Ptr32 : InheritableAttr {
 
 def Ptr64 : InheritableAttr {
   let Spellings = [Keyword<"__ptr64">];
+}
+
+def SPtr : InheritableAttr {
+  let Spellings = [Keyword<"__sptr">];
+}
+
+def UPtr : InheritableAttr {
+  let Spellings = [Keyword<"__uptr">];
 }
 
 class MSInheritanceAttr : InheritableAttr;

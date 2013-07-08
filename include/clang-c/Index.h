@@ -3429,6 +3429,13 @@ typedef enum {
 CINDEX_LINKAGE unsigned clang_Cursor_getObjCDeclQualifiers(CXCursor C);
 
 /**
+ * \brief Given a cursor that represents an ObjC method or property declaration,
+ * return non-zero if the declaration was affected by "@optional".
+ * Returns zero if the cursor is not such a declaration or it is "@required".
+ */
+CINDEX_LINKAGE unsigned clang_Cursor_isObjCOptional(CXCursor C);
+
+/**
  * \brief Returns non-zero if the given cursor is a variadic function or method.
  */
 CINDEX_LINKAGE unsigned clang_Cursor_isVariadic(CXCursor C);
@@ -4048,6 +4055,12 @@ CINDEX_LINKAGE CXString clang_FullComment_getAsXML(CXComment Comment);
  *
  * @{
  */
+
+/**
+ * \brief Determine if a C++ member function or member function template is
+ * pure virtual.
+ */
+CINDEX_LINKAGE unsigned clang_CXXMethod_isPureVirtual(CXCursor C);
 
 /**
  * \brief Determine if a C++ member function or member function template is 

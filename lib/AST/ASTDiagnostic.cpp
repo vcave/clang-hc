@@ -300,8 +300,7 @@ void clang::FormatASTNodeDiagnosticArgument(
         assert(ModLen == 0 && ArgLen == 0 &&
                "Invalid modifier for DeclarationName argument");
 
-      DeclarationName N = DeclarationName::getFromOpaqueInteger(Val);
-      N.printName(OS);
+      OS << DeclarationName::getFromOpaqueInteger(Val);
       break;
     }
     case DiagnosticsEngine::ak_nameddecl: {
@@ -991,7 +990,7 @@ class TemplateDiff {
 
   /// makeTemplateList - Dump every template alias into the vector.
   static void makeTemplateList(
-      SmallVector<const TemplateSpecializationType*, 1> &TemplateList,
+      SmallVectorImpl<const TemplateSpecializationType *> &TemplateList,
       const TemplateSpecializationType *TST) {
     while (TST) {
       TemplateList.push_back(TST);
@@ -1026,7 +1025,7 @@ class TemplateDiff {
     makeTemplateList(FromTemplateList, FromTST);
     makeTemplateList(ToTemplateList, ToTST);
 
-    SmallVector<const TemplateSpecializationType*, 1>::reverse_iterator
+    SmallVectorImpl<const TemplateSpecializationType *>::reverse_iterator
         FromIter = FromTemplateList.rbegin(), FromEnd = FromTemplateList.rend(),
         ToIter = ToTemplateList.rbegin(), ToEnd = ToTemplateList.rend();
 

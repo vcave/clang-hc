@@ -758,6 +758,11 @@ void StmtProfiler::VisitCXXNullPtrLiteralExpr(const CXXNullPtrLiteralExpr *S) {
   VisitExpr(S);
 }
 
+void StmtProfiler::VisitCXXStdInitializerListExpr(
+    const CXXStdInitializerListExpr *S) {
+  VisitExpr(S);
+}
+
 void StmtProfiler::VisitCXXTypeidExpr(const CXXTypeidExpr *S) {
   VisitExpr(S);
   if (S->isTypeOperand())
@@ -822,9 +827,17 @@ StmtProfiler::VisitLambdaExpr(const LambdaExpr *S) {
                                  CEnd = S->explicit_capture_end();
        C != CEnd; ++C) {
     ID.AddInteger(C->getCaptureKind());
-    if (C->capturesVariable()) {
+    switch (C->getCaptureKind()) {
+    case LCK_This:
+      break;
+    case LCK_ByRef:
+    case LCK_ByCopy:
       VisitDecl(C->getCapturedVar());
       ID.AddBoolean(C->isPackExpansion());
+      break;
+    case LCK_Init:
+      VisitDecl(C->getInitCaptureField());
+      break;
     }
   }
   // Note: If we actually needed to be able to match lambda

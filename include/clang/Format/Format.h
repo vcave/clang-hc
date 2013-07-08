@@ -33,11 +33,17 @@ struct FormatStyle {
   /// \brief The column limit.
   unsigned ColumnLimit;
 
-  /// \brief The penalty for each character outside of the column limit.
-  unsigned PenaltyExcessCharacter;
-
   /// \brief The maximum number of consecutive empty lines to keep.
   unsigned MaxEmptyLinesToKeep;
+
+  /// \brief The penalty for each line break introduced inside a comment.
+  unsigned PenaltyBreakComment;
+
+  /// \brief The penalty for each line break introduced inside a string literal.
+  unsigned PenaltyBreakString;
+
+  /// \brief The penalty for each character outside of the column limit.
+  unsigned PenaltyExcessCharacter;
 
   /// \brief Set whether & and * bind to the type as opposed to the variable.
   bool PointerBindsToType;
@@ -86,6 +92,9 @@ struct FormatStyle {
   /// \brief If true, "if (a) return;" can be put on a single line.
   bool AllowShortIfStatementsOnASingleLine;
 
+  /// \brief If true, "while (true) continue;" can be put on a single line.
+  bool AllowShortLoopsOnASingleLine;
+
   /// \brief Add a space in front of an Objective-C protocol list, i.e. use
   /// Foo <Protocol> instead of Foo<Protocol>.
   bool ObjCSpaceBeforeProtocolList;
@@ -96,6 +105,13 @@ struct FormatStyle {
 
   /// \brief The number of characters to use for indentation.
   unsigned IndentWidth;
+
+  /// \brief If \c true, always break after the \c template<...> of a template
+  /// declaration.
+  bool AlwaysBreakTemplateDeclarations;
+
+  /// \brief If \c true, always break before multiline string literals.
+  bool AlwaysBreakBeforeMultilineStrings;
 
   /// \brief If true, \c IndentWidth consecutive spaces will be replaced with
   /// tab characters.
@@ -115,6 +131,13 @@ struct FormatStyle {
   /// \brief The brace breaking style to use.
   BraceBreakingStyle BreakBeforeBraces;
 
+  /// \brief If \c true, format { 1 }, otherwise {1}.
+  bool SpacesInBracedLists;
+
+  /// \brief If \c true, indent when breaking function declarations which
+  /// are not also definitions after the type.
+  bool IndentFunctionDeclarationAfterType;
+
   bool operator==(const FormatStyle &R) const {
     return AccessModifierOffset == R.AccessModifierOffset &&
            AlignEscapedNewlinesLeft == R.AlignEscapedNewlinesLeft &&
@@ -122,24 +145,31 @@ struct FormatStyle {
                R.AllowAllParametersOfDeclarationOnNextLine &&
            AllowShortIfStatementsOnASingleLine ==
                R.AllowShortIfStatementsOnASingleLine &&
+           AlwaysBreakTemplateDeclarations ==
+               R.AlwaysBreakTemplateDeclarations &&
+           AlwaysBreakBeforeMultilineStrings ==
+               R.AlwaysBreakBeforeMultilineStrings &&
            BinPackParameters == R.BinPackParameters &&
+           BreakBeforeBraces == R.BreakBeforeBraces &&
            ColumnLimit == R.ColumnLimit &&
            ConstructorInitializerAllOnOneLineOrOnePerLine ==
                R.ConstructorInitializerAllOnOneLineOrOnePerLine &&
            DerivePointerBinding == R.DerivePointerBinding &&
            IndentCaseLabels == R.IndentCaseLabels &&
+           IndentWidth == R.IndentWidth &&
            MaxEmptyLinesToKeep == R.MaxEmptyLinesToKeep &&
            ObjCSpaceBeforeProtocolList == R.ObjCSpaceBeforeProtocolList &&
+           PenaltyBreakString == R.PenaltyBreakString &&
+           PenaltyBreakComment == R.PenaltyBreakComment &&
            PenaltyExcessCharacter == R.PenaltyExcessCharacter &&
            PenaltyReturnTypeOnItsOwnLine == R.PenaltyReturnTypeOnItsOwnLine &&
            PointerBindsToType == R.PointerBindsToType &&
            SpacesBeforeTrailingComments == R.SpacesBeforeTrailingComments &&
-           Standard == R.Standard &&
-           IndentWidth == R.IndentWidth &&
-           UseTab == R.UseTab &&
-           BreakBeforeBraces == R.BreakBeforeBraces;
+           SpacesInBracedLists == R.SpacesInBracedLists &&
+           Standard == R.Standard && UseTab == R.UseTab &&
+           IndentFunctionDeclarationAfterType ==
+               R.IndentFunctionDeclarationAfterType;
   }
-
 };
 
 /// \brief Returns a format style complying with the LLVM coding standards:
@@ -158,11 +188,13 @@ FormatStyle getChromiumStyle();
 /// https://developer.mozilla.org/en-US/docs/Developer_Guide/Coding_Style.
 FormatStyle getMozillaStyle();
 
-/// \brief Returns a predefined style by name.
+/// \brief Gets a predefined style by name.
 ///
 /// Currently supported names: LLVM, Google, Chromium, Mozilla. Names are
 /// compared case-insensitively.
-FormatStyle getPredefinedStyle(StringRef Name);
+///
+/// Returns true if the Style has been set.
+bool getPredefinedStyle(StringRef Name, FormatStyle *Style);
 
 /// \brief Parse configuration from YAML-formatted text.
 llvm::error_code parseConfiguration(StringRef Text, FormatStyle *Style);
@@ -177,18 +209,25 @@ std::string configurationAsText(const FormatStyle &Style);
 /// everything that might influence its formatting or might be influenced by its
 /// formatting.
 ///
-/// \param DiagClient A custom DiagnosticConsumer. Can be 0, in this case
-/// diagnostic is output to llvm::errs().
-///
 /// Returns the \c Replacements necessary to make all \p Ranges comply with
 /// \p Style.
 tooling::Replacements reformat(const FormatStyle &Style, Lexer &Lex,
                                SourceManager &SourceMgr,
-                               std::vector<CharSourceRange> Ranges,
-                               DiagnosticConsumer *DiagClient = 0);
+                               std::vector<CharSourceRange> Ranges);
+
+/// \brief Reformats the given \p Ranges in \p Code.
+///
+/// Otherwise identical to the reformat() function consuming a \c Lexer.
+tooling::Replacements reformat(const FormatStyle &Style, StringRef Code,
+                               std::vector<tooling::Range> Ranges,
+                               StringRef FileName = "<stdin>");
 
 /// \brief Returns the \c LangOpts that the formatter expects you to set.
-LangOptions getFormattingLangOpts();
+///
+/// \param Standard determines lexing mode: LC_Cpp11 and LS_Auto turn on C++11
+/// lexing mode, LS_Cpp03 - C++03 mode.
+LangOptions getFormattingLangOpts(FormatStyle::LanguageStandard Standard =
+                                      FormatStyle::LS_Cpp11);
 
 } // end namespace format
 } // end namespace clang

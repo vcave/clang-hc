@@ -184,7 +184,10 @@ void ASTDeclWriter::VisitTypeDecl(TypeDecl *D) {
 void ASTDeclWriter::VisitTypedefNameDecl(TypedefNameDecl *D) {
   VisitRedeclarable(D);
   VisitTypeDecl(D);
-  Writer.AddTypeSourceInfo(D->getTypeSourceInfo(), Record);  
+  Writer.AddTypeSourceInfo(D->getTypeSourceInfo(), Record);
+  Record.push_back(D->isModed());
+  if (D->isModed())
+    Writer.AddTypeRef(D->getUnderlyingType(), Record);
 }
 
 void ASTDeclWriter::VisitTypedefDecl(TypedefDecl *D) {
@@ -1171,8 +1174,6 @@ void ASTDeclWriter::VisitClassTemplatePartialSpecializationDecl(
   for (int i = 0, e = D->getNumTemplateArgsAsWritten(); i != e; ++i)
     Writer.AddTemplateArgumentLoc(D->getTemplateArgsAsWritten()[i], Record);
 
-  Record.push_back(D->getSequenceNumber());
-
   // These are read/set from/to the first declaration.
   if (D->getPreviousDecl() == 0) {
     Writer.AddDeclRef(D->getInstantiatedFromMember(), Record);
@@ -1620,7 +1621,7 @@ void ASTWriter::WriteDeclsBlockAbbrevs() {
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // isCXXForRangeDecl
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // isARCPseudoStrong
   Abv->Add(BitCodeAbbrevOp(0));                         // isConstexpr
-  Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 2)); // Linkage
+  Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 3)); // Linkage
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // HasInit
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // HasMemberSpecInfo
   // Type Source Info
